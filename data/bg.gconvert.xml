@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<gfx-xform version="1">
+	<input file="../data/bg.png" type="png" tile-width="8" tile-height="12"/>
+	<output file="../data/bg.inc">
+		<tiles var-name="bg_tiles"/>
+	</output>
+</gfx-xform>
