@@ -30,10 +30,10 @@ int main(){
 	SetTileTable(bg_tiles);
 	ClearVram();
 
-	SetTile(0,0,5);
-	SetTile(1,0,6);
-	SetTile(2,0,7);
-	SetTile(3,0,8);
+	SetTile(0,0,1);
+	SetTile(1,0,2);
+	SetTile(2,0,3);
+	SetTile(3,0,4);
 
 	while(1) {
 	}
