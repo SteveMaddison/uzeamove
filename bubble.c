@@ -87,12 +87,16 @@ void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player 
 						break;
 					case 1:
 						// Split tile
-						if( bubbles[player][b] != C_BLANK ) {
+						if( bubbles[player][b] == C_BLANK ) {
+							SetTile( x, y, BUBBLE_FIRST_TILE + bubbles[player][b+1] + 1 );
+						}
+						else {
 							if( b == 0 ) {
 								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
 							}
 							else {
-								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
+								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1))
+									+ bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
 							}
 						}
 						b++;
@@ -146,15 +150,15 @@ int main(){
 
 	bubbles[0][0] = C_RED;
 	bubbles[0][1] = C_ORANGE;
-	bubbles[0][2] = C_YELLOW;
+	bubbles[0][2] = C_BLANK;
 	bubbles[0][3] = C_GREEN;
 	bubbles[0][4] = C_BLUE;
-	bubbles[0][5] = C_PURPLE;
+	bubbles[0][5] = C_BLANK;
 	bubbles[0][6] = C_BLACK;
 	bubbles[0][7] = C_RED;
 
 	bubbles[0][8] = C_RED;
-	bubbles[0][9] = C_ORANGE;
+	bubbles[0][9] = C_BLANK;
 	bubbles[0][10] = C_YELLOW;
 //	bubbles[0][11] = C_GREEN;
 	bubbles[0][12] = C_BLUE;
