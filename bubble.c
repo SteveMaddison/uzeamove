@@ -70,102 +70,70 @@ unsigned char next[PLAYERS];
 
 
 void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player ) {
-	unsigned char x,y,p,b=0;
+	unsigned char x,y,b=0;
 
 	for( y=0 ; y < FIELD_TILES_V ; y++ ) {
-		p=0;
 		for( x=0 ; x < FIELD_TILES_H ; x++ ) {
+			// Reasonable default...
+			SetTile( x, y, BUBBLE_FIELD_TILE );
 			if( y%2 == 0 ) {
 				// Even row
-				if( bubbles[player][b] == C_BLANK ) {
-					// Special case, tile reuse.
-					if( x%3 == 1 ) {
-						// Split tile
-						SetTile( x, y, BUBBLE_FIRST_TILE + (bubbles[player][b+1]+1) );
-						b++;
-					}
-					else {
-						// Full tile
-						SetTile( x, y, BUBBLE_FIELD_TILE );
-					}
-				}
-				else {
-					switch( x%3 ) {
-						case 0:
-							// Left-most tile
+				switch( x%3 ) {
+					case 0:
+						// Left-most tile
+						if( bubbles[player][b] != C_BLANK ) {
 							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) );
-							break;
-						case 1:
-							// Split tile
-							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
-							b++;
-							break;
-						case 2:
-							// Right-most tile
+						}
+						break;
+					case 1:
+						// Split tile
+						if( bubbles[player][b] != C_BLANK ) {
+							if( b == 0 ) {
+								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
+							}
+							else {
+								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
+							}
+						}
+						b++;
+						break;
+					case 2:
+						// Right-most tile
+						if( bubbles[player][b] != C_BLANK ) {
 							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_EVEN_R_WHOLE );
-							b++;
-							break;
-					}
+						}
+						b++;
+						break;
 				}
 			}
 			else {
 				// Odd row
-				if( x == 0 ) {
-					if( bubbles[player][b+1] != C_BLANK ) {
-						SetTile( x, y, BUBBLE_SLIVER_L );
-					}
-					else {
-						SetTile( x, y, BUBBLE_FIELD_TILE );
-					}
-				}
-				else if ( x == FIELD_TILES_H-1 ) {
-					if( bubbles[player][b-1] != C_BLANK ) {
-						SetTile( x, y, BUBBLE_SLIVER_R );
-					}
-					else {
-						SetTile( x, y, BUBBLE_FIELD_TILE );
-					}
-				}
-				else {				
-					if( bubbles[player][b] == C_BLANK ) {
-						switch( x%3 ) {
-							case 0:
-								if( bubbles[player][b+1] != C_BLANK ) {
-									SetTile( x, y, BUBBLE_SLIVER_L );
-								}
-								else {
-									SetTile( x, y, BUBBLE_FIELD_TILE );
-								}
-								break;
-							case 1:
-								SetTile( x, y, BUBBLE_FIELD_TILE );
-								b++;
-								break;
-							case 2:
-								if( bubbles[player][b-1] != C_BLANK ) {
-									SetTile( x, y, BUBBLE_SLIVER_R );
-								}
-								else {
-									SetTile( x, y, BUBBLE_FIELD_TILE );
-								}
-								break;							
+				switch( x%3 ) {
+					case 0:
+						if( (x == 0 || bubbles[player][b-1] == C_BLANK) && bubbles[player][b] != C_BLANK ) {
+							SetTile( x, y, BUBBLE_SLIVER_L );
 						}
-					}
-					else {
-						switch( x%3 ) {
-							case 0:
-								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_R );
-								b++;
-								break;
-							case 1:
-								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_MIDDLE );
-								b++;
-								break;
-							case 2:
+						else if( bubbles[player][b] != C_BLANK ) {
+							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R );
+						}
+						break;
+					case 1:
+						if( bubbles[player][b] != C_BLANK ) {
+							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_MIDDLE );
+						}
+						b++;
+						break;
+					case 2:
+						if( ( x == FIELD_TILES_H-1 || bubbles[player][b] == C_BLANK) && bubbles[player][b-1] != C_BLANK ) {
+							SetTile( x, y, BUBBLE_SLIVER_R );
+						}
+						else {
+							if( bubbles[player][b] != C_BLANK ) {
 								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L );
-								break;
+							}
 						}
-					}
+						b++;
+						break;							
 				}
 			}
 		}
