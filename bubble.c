@@ -22,18 +22,111 @@
 #include <avr/pgmspace.h>
 #include <uzebox.h>
 
+typedef enum {
+	C_BLANK = 0,
+	C_RED,
+	C_ORANGE,
+	C_YELLOW,
+	C_GREEN,
+	C_BLUE,
+	C_PURPLE,
+	C_BLACK,
+	C_COUNT
+} colour_t;
+
+// Number of first bubble tile in the set
+// (not literally, as first row is for blanks).
+#define BUBBLE_FIRST_TILE			0
+#define BUBBLE_FIRST_COLOUR_TILE	11
+// Background tile for play field
+#define BUBBLE_FIELD_TILE			1
+// Offsets for bubbles on even-numbered rows
+#define BUBBLE_EVEN_L				0
+#define BUBBLE_EVEN_R_SPLIT			1
+#define BUBBLE_EVEN_R_WHOLE			9
+// Offsets for bubbles on odd-numbered rows
+#define BUBBLE_ODD_MIDDLE			10
+#define BUBBLE_ODD_L				11
+#define BUBBLE_ODD_R				12
+// Number of bubble tiles of each colour
+#define BUBBLES_PER_COLOUR			13
+#define BUBBLE_SLIVER_L				9
+#define BUBBLE_SLIVER_R				10
+
 #include "data/bg.inc"
 #include "data/sprites.inc"
 
+#define PLAYERS				2
+#define FIELD_BUBBLES_H		8
+#define FIELD_BUBBLES_V		11
+#define FIELD_TILES_H		12
+#define FIELD_TILES_V		11
+#define NUM_BUBBLES			83
+
+// Globals
+unsigned char bubbles[PLAYERS][NUM_BUBBLES];
+unsigned char current[PLAYERS];
+unsigned char next[PLAYERS];
+
+
+void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player ) {
+	unsigned char x,y,b=0;
+
+	for( y=0 ; y < FIELD_TILES_V ; y++ ) {
+		for( x=0 ; x < FIELD_TILES_H ; x++ ) {
+			if( y%2 == 0 ) {
+				// Even row
+				if( bubbles[player][b] == C_BLANK ) {
+					// Special case, tile reuse.
+					if( x%3 == 1 ) {
+						// Split tile
+						SetTile( x, y, BUBBLE_FIRST_TILE + bubbles[player][b+1] );
+						b++;
+					}
+					else {
+						// Full tile
+						SetTile( x, y, BUBBLE_FIELD_TILE );
+					}
+				}
+				else {
+					switch( x%3 ) {
+						case 0:
+							// Left-most tile
+							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (bubbles[player][b]*BUBBLES_PER_COLOUR) );
+							break;
+						case 1:
+							// Split tile
+							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (bubbles[player][b]*BUBBLES_PER_COLOUR) + bubbles[player][b+1] );
+							b++;
+							break;
+						case 2:
+							// Right-most tile
+							SetTile( x, y, BUBBLE_FIRST_TILE + (bubbles[player][b]*BUBBLES_PER_COLOUR) + BUBBLE_EVEN_R_WHOLE );
+							break;
+					}
+				}
+			}
+			else {
+				// Odd row
+				SetTile( x, y, BUBBLE_FIELD_TILE );
+			}
+		}
+	}
+}
+
 int main(){
-	int i = VRAM_SIZE;
 	SetTileTable(bg_tiles);
 	ClearVram();
 
-	SetTile(0,0,1);
-	SetTile(1,0,2);
-	SetTile(2,0,3);
-	SetTile(3,0,4);
+	bubbles[0][0] = C_RED;
+	bubbles[0][1] = C_ORANGE;
+	bubbles[0][2] = C_YELLOW;
+	bubbles[0][3] = C_GREEN;
+	bubbles[0][4] = C_BLUE;
+	bubbles[0][5] = C_PURPLE;
+	bubbles[0][6] = C_BLACK;
+
+	draw_field( 0,0,0 );
 
 	while(1) {
 	}
