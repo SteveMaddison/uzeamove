@@ -53,6 +53,9 @@ typedef enum {
 #define BUBBLE_SLIVER_L				9
 #define BUBBLE_SLIVER_R				10
 
+#define FIELD_OFFSET_X		2
+#define FIELD_OFFSET_Y		2
+
 #include "data/bg.inc"
 #include "data/sprites.inc"
 
@@ -70,32 +73,34 @@ unsigned char next[PLAYERS];
 
 
 void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player ) {
-	unsigned char x,y,b=0;
+	unsigned char x,y,xp,yp,b=0;
 
 	for( y=0 ; y < FIELD_TILES_V ; y++ ) {
 		for( x=0 ; x < FIELD_TILES_H ; x++ ) {
+			xp = x_pos+x;
+			yp = y_pos+y;
 			// Reasonable default...
-			SetTile( x, y, BUBBLE_FIELD_TILE );
+			SetTile( xp, yp, BUBBLE_FIELD_TILE );
 			if( y%2 == 0 ) {
 				// Even row
 				switch( x%3 ) {
 					case 0:
 						// Left-most tile
 						if( bubbles[player][b] != C_BLANK ) {
-							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) );
+							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) );
 						}
 						break;
 					case 1:
 						// Split tile
 						if( bubbles[player][b] == C_BLANK ) {
-							SetTile( x, y, BUBBLE_FIRST_TILE + bubbles[player][b+1] + 1 );
+							SetTile( xp, yp, BUBBLE_FIRST_TILE + bubbles[player][b+1] + 1 );
 						}
 						else {
 							if( b == 0 ) {
-								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
+								SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
 							}
 							else {
-								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1))
+								SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1))
 									+ bubbles[player][b+1] + BUBBLE_EVEN_R_SPLIT );
 							}
 						}
@@ -104,7 +109,7 @@ void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player 
 					case 2:
 						// Right-most tile
 						if( bubbles[player][b] != C_BLANK ) {
-							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_EVEN_R_WHOLE );
+							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_EVEN_R_WHOLE );
 						}
 						b++;
 						break;
@@ -115,25 +120,25 @@ void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player 
 				switch( x%3 ) {
 					case 0:
 						if( (x == 0 || bubbles[player][b-1] == C_BLANK) && bubbles[player][b] != C_BLANK ) {
-							SetTile( x, y, BUBBLE_SLIVER_L );
+							SetTile( xp, yp, BUBBLE_SLIVER_L );
 						}
 						else if( bubbles[player][b] != C_BLANK ) {
-							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R );
+							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R );
 						}
 						break;
 					case 1:
 						if( bubbles[player][b] != C_BLANK ) {
-							SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_MIDDLE );
+							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_MIDDLE );
 						}
 						b++;
 						break;
 					case 2:
 						if( ( x == FIELD_TILES_H-1 || bubbles[player][b] == C_BLANK) && bubbles[player][b-1] != C_BLANK ) {
-							SetTile( x, y, BUBBLE_SLIVER_R );
+							SetTile( xp, yp, BUBBLE_SLIVER_R );
 						}
 						else {
 							if( bubbles[player][b] != C_BLANK ) {
-								SetTile( x, y, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L );
+								SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L );
 							}
 						}
 						b++;
@@ -148,7 +153,7 @@ int main(){
 	SetTileTable(bg_tiles);
 	ClearVram();
 
-	bubbles[0][0] = C_RED;
+//	bubbles[0][0] = C_RED;
 	bubbles[0][1] = C_ORANGE;
 	bubbles[0][2] = C_BLANK;
 	bubbles[0][3] = C_GREEN;
@@ -167,9 +172,17 @@ int main(){
 	
 	bubbles[0][15] = C_RED;
 
-	draw_field( 0,0,0 );
+	draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
+	DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
+	
+	draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y, 1 );
+	DrawMap2( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
 
 	while(1) {
+		WaitVsync(5);
+		DrawMap2( FIELD_OFFSET_X+2, FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+		WaitVsync(5);
+		DrawMap2( FIELD_OFFSET_X+2, FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
 	}
 }
 

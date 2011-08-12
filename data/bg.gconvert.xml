@@ -3,5 +3,10 @@
 	<input file="../data/bg.png" type="png" tile-width="8" tile-height="12"/>
 	<output file="../data/bg.inc">
 		<tiles var-name="bg_tiles"/>
+		<maps pointers-size="8">
+			<map var-name="map_panel" left="0" top="10" width="12" height="2"/>
+			<map var-name="map_gears1" left="2" top="10" width="3" height="2"/>
+			<map var-name="map_gears2" left="12" top="10" width="3" height="2"/>
+		</maps>
 	</output>
 </gfx-xform>
