@@ -62,6 +62,12 @@ typedef enum {
 #define P2_TILE_OFFSET		13
 #define P2_PIXEL_OFFSET		(TILE_WIDTH*P2_TILE_OFFSET)
 
+// Pixel offsets into player's fields
+#define FIELD_OFFSET_1P		(((SCREEN_TILES_H-FIELD_TILES_H)/2)*TILE_WIDTH)
+#define FIELD_CENTRE_1P		((SCREEN_TILES_H/2)*TILE_WIDTH)
+#define FIELD_OFFSET_2P(p)	((FIELD_OFFSET_X*TILE_WIDTH) + (P2_PIXEL_OFFSET*(p)))
+#define FIELD_CENTRE_2P(p)	(((FIELD_OFFSET_X + (FIELD_TILES_H/2))*TILE_WIDTH) + (P2_PIXEL_OFFSET*(p)))
+
 #include "data/bg.inc"
 #include "data/sprites.inc"
 
@@ -70,6 +76,7 @@ typedef enum {
 #define FIELD_TILES_H		12
 #define FIELD_TILES_V		11
 #define NUM_BUBBLES			83
+#define GEAR_ANIM_STEPS 	2
 
 // Pre-calcutated co-ordinates of arrow parts
 #define ANGLES 30
@@ -113,21 +120,13 @@ const char traj_y[ANGLES] PROGMEM = {
 #define TILE_BUBBLE_R(c)	(c*2)
 
 #define SPRITE_ARROW		0
-#define SPRITE_RING			1
-#define SPRITE_RIVET		2
-
-#define SPRITE_CURRENT_L	3
-#define SPRITE_CURRENT_R	4
-#define SPRITE_PROJ_L		5
-#define SPRITE_PROJ_R		6
-#define SPRITE_NEXT_L		7
-#define SPRITE_NEXT_R		8
-
-#define SPRITES_PER_PLAYER	9
+#define SPRITE_RING			2
+#define SPRITE_RIVET		4
+#define SPRITE_PROJ_L		6
+#define SPRITE_PROJ_R		8
 
 // Structures
 typedef struct {
-	char c; // Colour
 	char angle;
 	int x;
 	int y;
@@ -135,18 +134,16 @@ typedef struct {
 
 
 // Globals
-#define PLAYERS 1
+#define PLAYERS 2
 unsigned char players = 1;
 unsigned char bubbles[PLAYERS][NUM_BUBBLES];
 unsigned char current[PLAYERS];
 unsigned char next[PLAYERS];
 char angle[PLAYERS];
 projectile_t proj[PLAYERS];
-bool block_fire[PLAYERS];
+bool firing[PLAYERS];
 unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
-#define GEAR_ANIM_STEPS 2
-char gear_anim[PLAYERS];
 unsigned int frame = 0;
 
 
@@ -229,16 +226,19 @@ void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player 
 }
 
 void new_bubble( unsigned char player ) {
-	unsigned char ps = (player*SPRITES_PER_PLAYER);
-	
-	current[player] = next[player];
-	next[player] = (random()%(C_COUNT-1)) + 1;
-	
-	sprites[SPRITE_CURRENT_L+ps].tileIndex = TILE_BUBBLE_L( current[(int)player] );
-	sprites[SPRITE_CURRENT_R+ps].tileIndex = TILE_BUBBLE_R( current[(int)player] );
+	if( player < players ) {
+		current[player] = next[player];
+		next[player] = (random()%(C_COUNT-1)) + 1;
 
-	sprites[SPRITE_NEXT_L+ps].tileIndex = TILE_BUBBLE_L( next[(int)player] );
-	sprites[SPRITE_NEXT_R+ps].tileIndex = TILE_BUBBLE_R( next[(int)player] );
+		proj[player].x = ((FIELD_TILES_H*TILE_WIDTH)/2) - (BUBBLE_WIDTH/2);
+		proj[player].y = ((FIELD_TILES_V+1)*TILE_HEIGHT) - (BUBBLE_WIDTH/2);
+	
+		proj[player].x *= TRAJ_FACTOR;
+		proj[player].y *= TRAJ_FACTOR;
+	
+		sprites[SPRITE_PROJ_L+player].tileIndex = TILE_BUBBLE_L( current[(int)player] );
+		sprites[SPRITE_PROJ_R+player].tileIndex = TILE_BUBBLE_R( current[(int)player] );
+	}
 }
 
 bool proc_controls( unsigned char player ) {
@@ -253,10 +253,6 @@ bool proc_controls( unsigned char player ) {
 			angle[(int)player]--;
 			if( angle[(int)player] < -(ANGLES-1) ) {
 				angle[(int)player] = -(ANGLES-1);
-			}
-			gear_anim[(int)player]--;
-			if( gear_anim[(int)player] < 0 ) {
-				gear_anim[(int)player] = GEAR_ANIM_STEPS-1;
 			}
 			changed = true;
 			block_left[player] = 3;
@@ -274,10 +270,6 @@ bool proc_controls( unsigned char player ) {
 			if( angle[(int)player] > ANGLES-1 ) {
 				angle[(int)player] = ANGLES-1;
 			}
-			gear_anim[(int)player]++;
-			if( gear_anim[(int)player] > GEAR_ANIM_STEPS-1 ) {
-				gear_anim[(int)player] = 0;
-			}
 			changed = true;
 			block_right[player] = 3;
 			block_left[player] = 0;
@@ -288,116 +280,98 @@ bool proc_controls( unsigned char player ) {
 	}
 	
 	if( ReadJoypad(player) & (BTN_A|BTN_B|BTN_X|BTN_Y) ) {
-		if( !block_fire[player] ) {
+		if( !firing[player] ) {
 			// Fire!
-			unsigned char ps = (player*SPRITES_PER_PLAYER);
-
-			proj[player].x = ((FIELD_TILES_H*TILE_WIDTH)/2) - (BUBBLE_WIDTH/2);
-			proj[player].y = ((FIELD_TILES_V+1)*TILE_HEIGHT) - (BUBBLE_WIDTH/2);
-			
-			proj[player].x *= TRAJ_FACTOR;
-			proj[player].y *= TRAJ_FACTOR;
-			
-			proj[player].c = current[player];
 			proj[player].angle = angle[player];
-		
-			sprites[SPRITE_PROJ_L+ps].tileIndex = TILE_BUBBLE_L(proj[player].c);
-			sprites[SPRITE_PROJ_R+ps].tileIndex = TILE_BUBBLE_R(proj[player].c);
-		
-			new_bubble(player);
+			firing[player] = true;
 		}
-		block_fire[player] = true;
 	}
 	return changed;
 }
 
 void draw_arrow( unsigned char x, unsigned char y, unsigned char player ) {
-	unsigned char ps = SPRITES_PER_PLAYER * player;
 	if( angle[player] >= 0 ) {
-		sprites[SPRITE_ARROW+ps].tileIndex = TILE_ARROW + ((angle[player]+2)/5);
+		sprites[SPRITE_ARROW+player].tileIndex = TILE_ARROW + ((angle[player]+2)/5);
 	
-		sprites[SPRITE_ARROW+ps].x = x + pgm_read_byte( arrow_x + angle[player] ) -4;
-		sprites[SPRITE_RING+ps ].x = x + pgm_read_byte(  ring_x + angle[player] ) -4;
-		sprites[SPRITE_RIVET+ps].x = x + pgm_read_byte( rivet_x + angle[player] ) -4;
+		sprites[SPRITE_ARROW+player].x = x + pgm_read_byte( arrow_x + angle[player] ) -4;
+		sprites[SPRITE_RING+player ].x = x + pgm_read_byte(  ring_x + angle[player] ) -4;
+		sprites[SPRITE_RIVET+player].x = x + pgm_read_byte( rivet_x + angle[player] ) -4;
 
-		sprites[SPRITE_ARROW+ps].y = y - pgm_read_byte( arrow_y + angle[player] ) -2;
-		sprites[SPRITE_RING+ps ].y = y - pgm_read_byte(  ring_y + angle[player] ) -5;
-		sprites[SPRITE_RIVET+ps].y = y - pgm_read_byte( rivet_y + angle[player] ) -3;
+		sprites[SPRITE_ARROW+player].y = y - pgm_read_byte( arrow_y + angle[player] ) -2;
+		sprites[SPRITE_RING+player ].y = y - pgm_read_byte(  ring_y + angle[player] ) -5;
+		sprites[SPRITE_RIVET+player].y = y - pgm_read_byte( rivet_y + angle[player] ) -3;
 	}
 	else {
-		sprites[SPRITE_ARROW+ps].tileIndex = TILE_ARROW + ((angle[player]-2)/5);
+		sprites[SPRITE_ARROW+player].tileIndex = TILE_ARROW + ((angle[player]-2)/5);
 
-		sprites[SPRITE_ARROW+ps].x = x - pgm_read_byte( arrow_x - angle[player] ) -4;
-		sprites[SPRITE_RING+ps ].x = x - pgm_read_byte(  ring_x - angle[player] ) -4;
-		sprites[SPRITE_RIVET+ps].x = x - pgm_read_byte( rivet_x - angle[player] ) -4;
+		sprites[SPRITE_ARROW+player].x = x - pgm_read_byte( arrow_x - angle[player] ) -4;
+		sprites[SPRITE_RING+player ].x = x - pgm_read_byte(  ring_x - angle[player] ) -4;
+		sprites[SPRITE_RIVET+player].x = x - pgm_read_byte( rivet_x - angle[player] ) -4;
 
-		sprites[SPRITE_ARROW+ps].y = y - pgm_read_byte( arrow_y - angle[player] ) -2;
-		sprites[SPRITE_RING+ps ].y = y - pgm_read_byte(  ring_y - angle[player] ) -5;
-		sprites[SPRITE_RIVET+ps].y = y - pgm_read_byte( rivet_y - angle[player] ) -3;
+		sprites[SPRITE_ARROW+player].y = y - pgm_read_byte( arrow_y - angle[player] ) -2;
+		sprites[SPRITE_RING+player ].y = y - pgm_read_byte(  ring_y - angle[player] ) -5;
+		sprites[SPRITE_RIVET+player].y = y - pgm_read_byte( rivet_y - angle[player] ) -3;
 	}
 }
 
 void update_projectile( unsigned char player ) {
-	unsigned char ps = (player*SPRITES_PER_PLAYER);
-
-	proj[player].y -= pgm_read_byte( traj_y + proj[player].angle );
+	if( firing[player] ) {
+		proj[player].y -= pgm_read_byte( traj_y + proj[player].angle );
 	
-	if( proj[player].angle >= 0 ) {
-		proj[player].x += pgm_read_byte( traj_x + proj[player].angle );
-		if( proj[player].x >= ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * TRAJ_FACTOR ) {
-			// Handle bounce. Until we're back on the board, step back
-			// through the last step we made. This calls for increased
-			// precision...
-			proj[player].x *= TRAJ_FACTOR;
-			proj[player].y *= TRAJ_FACTOR;
+		if( proj[player].angle >= 0 ) {
+			proj[player].x += pgm_read_byte( traj_x + proj[player].angle );
+			if( proj[player].x >= ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * TRAJ_FACTOR ) {
+				// Handle bounce. Until we're back on the board, step back
+				// through the last step we made. This calls for increased
+				// precision...
+				proj[player].x *= TRAJ_FACTOR;
+				proj[player].y *= TRAJ_FACTOR;
 			
-			while( proj[player].x >= ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * (TRAJ_FACTOR*TRAJ_FACTOR) ) {
-				proj[player].x -= pgm_read_byte( traj_x + proj[player].angle );
-				proj[player].y += pgm_read_byte( traj_y + proj[player].angle );
-			}
+				while( proj[player].x >= ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * (TRAJ_FACTOR*TRAJ_FACTOR) ) {
+					proj[player].x -= pgm_read_byte( traj_x + proj[player].angle );
+					proj[player].y += pgm_read_byte( traj_y + proj[player].angle );
+				}
 
-			proj[player].x /= TRAJ_FACTOR;
-			proj[player].y /= TRAJ_FACTOR;
-			proj[player].angle = -proj[player].angle;
+				proj[player].x /= TRAJ_FACTOR;
+				proj[player].y /= TRAJ_FACTOR;
+				proj[player].angle = -proj[player].angle;
+			}
 		}
-	}
-	else {
-		proj[player].x -= pgm_read_byte( traj_x - proj[player].angle );
-		while( proj[player].x < 0 ) {
-			// Handle bounce
-			proj[player].x *= TRAJ_FACTOR;
-			proj[player].y *= TRAJ_FACTOR;
-			
+		else {
+			proj[player].x -= pgm_read_byte( traj_x - proj[player].angle );
 			while( proj[player].x < 0 ) {
-				proj[player].x += pgm_read_byte( traj_x + proj[player].angle );
-				proj[player].y += pgm_read_byte( traj_y + proj[player].angle );
-			}
+				// Handle bounce
+				proj[player].x *= TRAJ_FACTOR;
+				proj[player].y *= TRAJ_FACTOR;
+			
+				while( proj[player].x < 0 ) {
+					proj[player].x += pgm_read_byte( traj_x + proj[player].angle );
+					proj[player].y += pgm_read_byte( traj_y + proj[player].angle );
+				}
 
-			proj[player].x /= TRAJ_FACTOR;
-			proj[player].y /= TRAJ_FACTOR;
-			proj[player].angle = -proj[player].angle;
+				proj[player].x /= TRAJ_FACTOR;
+				proj[player].y /= TRAJ_FACTOR;
+				proj[player].angle = -proj[player].angle;
+			}
 		}
 	}
 
 	if( proj[player].y < 0 ) {
-		proj[player].c = C_BLANK;
-		sprites[SPRITE_PROJ_L+ps].tileIndex = 0;
-		sprites[SPRITE_PROJ_R+ps].tileIndex = 0;
-		block_fire[player] = false;
+		new_bubble(player);
+		firing[player] = false;
+		update_projectile(player);
 	}
-	else {	
-		if( players == 1 ) {
-			sprites[SPRITE_PROJ_L+ps].x = ((SCREEN_TILES_H-FIELD_TILES_H)/2 * TILE_WIDTH) + (proj[player].x/TRAJ_FACTOR);
-		}
-		else {
-			sprites[SPRITE_PROJ_L+ps].x = ((FIELD_OFFSET_X + (FIELD_TILES_H/2))*TILE_WIDTH)
-				+ (P2_PIXEL_OFFSET*player) + (proj[player].x/TRAJ_FACTOR);
-		}
-		sprites[SPRITE_PROJ_R+ps].x = sprites[SPRITE_PROJ_L+ps].x + TILE_WIDTH;
-	
-		sprites[SPRITE_PROJ_L+ps].y = (FIELD_OFFSET_Y*TILE_HEIGHT) + (proj[player].y/TRAJ_FACTOR);
-		sprites[SPRITE_PROJ_R+ps].y = sprites[SPRITE_PROJ_L+ps].y;
+
+	if( players == 1 ) {
+		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_1P + (proj[player].x/TRAJ_FACTOR);
 	}
+	else {
+		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_2P(player) + (proj[player].x/TRAJ_FACTOR);
+	}
+	sprites[SPRITE_PROJ_R+player].x = sprites[SPRITE_PROJ_L+player].x + TILE_WIDTH;
+
+	sprites[SPRITE_PROJ_L+player].y = (FIELD_OFFSET_Y*TILE_HEIGHT) + (proj[player].y/TRAJ_FACTOR);
+	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
 }
 
 int main(){
@@ -410,46 +384,28 @@ int main(){
 		bubbles[0][p] = random()%C_COUNT;
 	}
 
-	for( p=0 ; p<PLAYERS ; p++ ) {
-		unsigned char ps = (p*SPRITES_PER_PLAYER);
-		
-		if( players == 1 ) {
-			draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, p );
-			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
-		}
-		else {
-			draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, p );
-			DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
-	
-			draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y, 1 );
-			DrawMap2( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
-		}
-	
-		// Tile indeces of arrow parts.
-		sprites[SPRITE_ARROW+ps].tileIndex = TILE_ARROW;
-		sprites[SPRITE_RING +ps].tileIndex = TILE_RING;
-		sprites[SPRITE_RIVET+ps].tileIndex = TILE_RIVET;
+	if( players == 1 ) {
+		draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
+		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
+	}
+	else {
+		draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
+		DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
 
-		// Position and indeces of current/next bubbles.
-		if( players == 1 ) {
-			sprites[SPRITE_CURRENT_L+ps].x = ((SCREEN_TILES_H/2) * TILE_WIDTH) - (BUBBLE_WIDTH/2);
-		}
-		else {
-			sprites[SPRITE_CURRENT_L+ps].x = ((FIELD_OFFSET_X + (FIELD_TILES_H/2))*TILE_WIDTH) + (P2_PIXEL_OFFSET*p) - (BUBBLE_WIDTH/2);
-		}
-		
-		sprites[SPRITE_CURRENT_L+ps].y = ((FIELD_OFFSET_Y+FIELD_TILES_V)*TILE_HEIGHT) + (BUBBLE_WIDTH/2);
-		sprites[SPRITE_NEXT_L+ps].x = sprites[SPRITE_CURRENT_L+ps].x + 40;
-		sprites[SPRITE_NEXT_L+ps].y = sprites[SPRITE_CURRENT_L+ps].y + 1;
-		
-		sprites[SPRITE_CURRENT_R+ps].x = sprites[SPRITE_CURRENT_L+ps].x + TILE_WIDTH;
-		sprites[SPRITE_CURRENT_R+ps].y = sprites[SPRITE_CURRENT_L+ps].y;
-		sprites[SPRITE_NEXT_R+ps].x = sprites[SPRITE_NEXT_L+ps].x + TILE_WIDTH;
-		sprites[SPRITE_NEXT_R+ps].y = sprites[SPRITE_NEXT_L+ps].y;
-		
-		new_bubble(p); // Initialise next
+		draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y, 1 );
+		DrawMap2( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
+	}
+
+	for( p=0 ; p<PLAYERS ; p++ ) {	
+		// Tile indeces of arrow parts.
+		sprites[SPRITE_ARROW+p].tileIndex = TILE_ARROW;
+		sprites[SPRITE_RING +p].tileIndex = TILE_RING;
+		sprites[SPRITE_RIVET+p].tileIndex = TILE_RIVET;
+
+		firing[p] = false;	
+		new_bubble(p); // Initialize next	
 		new_bubble(p); // Initialise current and next
-		proj[p].c = C_BLANK;
+		update_projectile(p);
 	}
 
 	while(1) {
@@ -458,11 +414,9 @@ int main(){
 		for( p=0 ; p < players ; p++ ) {
 			if( proc_controls(p) || frame == 0 ) {
 				if( players == 1 ) {
-					draw_arrow(
-						(SCREEN_TILES_H/2) * TILE_WIDTH,
-						((FIELD_OFFSET_Y + FIELD_TILES_H)*TILE_HEIGHT), p );
+					draw_arrow(	FIELD_CENTRE_1P, ((FIELD_OFFSET_Y + FIELD_TILES_H)*TILE_HEIGHT), p );
 
-					if( gear_anim[p] == 0 ) {
+					if( angle[p] % GEAR_ANIM_STEPS == 0 ) {
 						DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2 , FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
 					}
 					else {
@@ -470,11 +424,9 @@ int main(){
 					}
 				}
 				else {
-					draw_arrow(
-						((FIELD_OFFSET_X + (FIELD_TILES_H/2))*TILE_WIDTH) + (P2_PIXEL_OFFSET*p),
-						(FIELD_OFFSET_Y + FIELD_TILES_H) * TILE_HEIGHT, p );
+					draw_arrow( FIELD_CENTRE_2P(p), (FIELD_OFFSET_Y + FIELD_TILES_H) * TILE_HEIGHT, p );
 
-					if( gear_anim[p] == 0 ) {
+					if( angle[p] % GEAR_ANIM_STEPS == 0 ) {
 						DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*p), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
 					}
 					else {
@@ -482,7 +434,7 @@ int main(){
 					}
 				}
 			}
-			if( proj[p].c != C_BLANK ) {
+			if( firing[p] ) {
 				update_projectile(p);
 			}
 		}
