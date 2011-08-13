@@ -37,7 +37,7 @@ typedef enum {
 // Number of first bubble tile in the set
 // (not literally, as first row is for blanks).
 #define BUBBLE_FIRST_TILE			0
-#define BUBBLE_FIRST_COLOUR_TILE	11
+#define BUBBLE_FIRST_COLOUR_TILE	15
 // Background tile for play field
 #define BUBBLE_FIELD_TILE			1
 // Offsets for bubbles on even-numbered rows
@@ -55,11 +55,15 @@ typedef enum {
 #define BUBBLE_SLIVER_L				9
 #define BUBBLE_SLIVER_R				10
 
+#define BG_TILE1			11
+#define BG_TILES			4
+#define FADE_SPEED			2
+
 #define BUBBLE_WIDTH		12
 #define FIELD_OFFSET_X		2
 #define FIELD_OFFSET_Y		2
 // Offset of player 2's field from that of player 1.
-#define P2_TILE_OFFSET		13
+#define P2_TILE_OFFSET		14
 #define P2_PIXEL_OFFSET		(TILE_WIDTH*P2_TILE_OFFSET)
 
 // Pixel offsets into player's fields
@@ -135,7 +139,7 @@ typedef struct {
 
 // Globals
 #define PLAYERS 2
-unsigned char players = 1;
+unsigned char players = 2;
 unsigned char bubbles[PLAYERS][NUM_BUBBLES];
 unsigned char current[PLAYERS];
 unsigned char next[PLAYERS];
@@ -195,7 +199,7 @@ void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player 
 						else if( bubbles[player][b] != C_BLANK ) {
 							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R );
 						}
-						else if( bubbles[player][b-1] != C_BLANK ) {
+						else if( bubbles[player][b-1] != C_BLANK && x != 0 ) {
 							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R_BLANK );
 						}
 						break;
@@ -209,13 +213,18 @@ void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player 
 						if( ( x == FIELD_TILES_H-1 || bubbles[player][b] == C_BLANK) && bubbles[player][b-1] != C_BLANK ) {
 							SetTile( xp, yp, BUBBLE_SLIVER_R );
 						}
-						else if( bubbles[player][b] != C_BLANK ) {
-							if( bubbles[player][b-1] == C_BLANK ) {
-								SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L_BLANK );
+						else if( x != FIELD_TILES_H-1 ) {
+							if( bubbles[player][b] != C_BLANK ) {
+								if( bubbles[player][b-1] == C_BLANK ) {
+									SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L_BLANK );
+								}
+								else {
+									SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L );
+								}
 							}
-							else {
-								SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L );
-							}
+						}
+						else {
+							b--;
 						}
 						b++;
 						break;							
@@ -228,16 +237,29 @@ void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player 
 void new_bubble( unsigned char player ) {
 	if( player < players ) {
 		current[player] = next[player];
-		next[player] = (random()%(C_COUNT-1)) + 1;
+		next[player] = ((random()+frame)%(C_COUNT-1)) + 1;
 
 		proj[player].x = ((FIELD_TILES_H*TILE_WIDTH)/2) - (BUBBLE_WIDTH/2);
 		proj[player].y = ((FIELD_TILES_V+1)*TILE_HEIGHT) - (BUBBLE_WIDTH/2);
 	
 		proj[player].x *= TRAJ_FACTOR;
 		proj[player].y *= TRAJ_FACTOR;
-	
+
 		sprites[SPRITE_PROJ_L+player].tileIndex = TILE_BUBBLE_L( current[(int)player] );
 		sprites[SPRITE_PROJ_R+player].tileIndex = TILE_BUBBLE_R( current[(int)player] );
+
+		if( players == 1 ) {
+			SetTile( ((SCREEN_TILES_H-FIELD_TILES_H)/2) + FIELD_TILES_H - 2, FIELD_OFFSET_Y + FIELD_TILES_V + 1,
+				BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(next[player]-1)) + BUBBLE_ODD_L_BLANK);
+			SetTile( ((SCREEN_TILES_H-FIELD_TILES_H)/2) + FIELD_TILES_H - 1, FIELD_OFFSET_Y + FIELD_TILES_V + 1,
+				BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(next[player]-1)) + BUBBLE_ODD_R_BLANK);
+		}
+		else {
+			SetTile( FIELD_OFFSET_X + (P2_TILE_OFFSET*player) + FIELD_TILES_H - 2, FIELD_OFFSET_Y + FIELD_TILES_V + 1,
+				BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(next[player]-1)) + BUBBLE_ODD_L_BLANK);
+			SetTile( FIELD_OFFSET_X + (P2_TILE_OFFSET*player) + FIELD_TILES_H - 1, FIELD_OFFSET_Y + FIELD_TILES_V + 1,
+				BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(next[player]-1)) + BUBBLE_ODD_R_BLANK);			
+		}
 	}
 }
 
@@ -374,26 +396,55 @@ void update_projectile( unsigned char player ) {
 	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
 }
 
+void update_arrow( unsigned char player ) {
+	if( players == 1 ) {
+		draw_arrow(	FIELD_CENTRE_1P, ((FIELD_OFFSET_Y + FIELD_TILES_H)*TILE_HEIGHT), player );
+
+		if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
+			DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2 , FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
+		}
+		else {
+			DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2, FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+		}
+	}
+	else {
+		draw_arrow( FIELD_CENTRE_2P(player), (FIELD_OFFSET_Y + FIELD_TILES_H) * TILE_HEIGHT, player );
+
+		if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
+			DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
+		}
+		else {
+			DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+		}
+	}
+}
+
 int main(){
 	int p;
 	SetTileTable(bg_tiles);
 	SetSpritesTileTable(sprite_tiles);
 	ClearVram();
+	FadeOut(0,true);
 
-	for( p = 0 ; p < 16 ; p++ ) {
+	for( p = 0 ; p < VRAM_TILES_H*VRAM_TILES_V ; p++ ) {
+		vram[p] = BG_TILE1 + RAM_TILES_COUNT + random()%BG_TILES;
+	}
+
+	for( p = 0 ; p < 24 ; p++ ) {
 		bubbles[0][p] = random()%C_COUNT;
+		bubbles[1][p] = random()%C_COUNT;
 	}
 
 	if( players == 1 ) {
+		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2 - 1, FIELD_OFFSET_Y - 1, map_field );
 		draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
-		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
 	}
 	else {
+		DrawMap2( FIELD_OFFSET_X - 1, FIELD_OFFSET_Y - 1, map_field );
 		draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
-		DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
 
-		draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y, 1 );
-		DrawMap2( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X -1, FIELD_OFFSET_Y+FIELD_TILES_V, map_panel );
+		DrawMap2( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X - 1, FIELD_OFFSET_Y - 1, map_field );
+		draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X, FIELD_OFFSET_Y, 1 );
 	}
 
 	for( p=0 ; p<PLAYERS ; p++ ) {	
@@ -406,33 +457,18 @@ int main(){
 		new_bubble(p); // Initialize next	
 		new_bubble(p); // Initialise current and next
 		update_projectile(p);
+		
+		update_arrow(p);
 	}
+
+	FadeIn(FADE_SPEED,true);
 
 	while(1) {
 		WaitVsync(1);
 
 		for( p=0 ; p < players ; p++ ) {
-			if( proc_controls(p) || frame == 0 ) {
-				if( players == 1 ) {
-					draw_arrow(	FIELD_CENTRE_1P, ((FIELD_OFFSET_Y + FIELD_TILES_H)*TILE_HEIGHT), p );
-
-					if( angle[p] % GEAR_ANIM_STEPS == 0 ) {
-						DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2 , FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
-					}
-					else {
-						DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2, FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
-					}
-				}
-				else {
-					draw_arrow( FIELD_CENTRE_2P(p), (FIELD_OFFSET_Y + FIELD_TILES_H) * TILE_HEIGHT, p );
-
-					if( angle[p] % GEAR_ANIM_STEPS == 0 ) {
-						DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*p), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
-					}
-					else {
-						DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*p), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
-					}
-				}
+			if( proc_controls(p) ) {
+				update_arrow(p);
 			}
 			if( firing[p] ) {
 				update_projectile(p);
