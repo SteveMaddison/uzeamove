@@ -156,7 +156,7 @@ unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
 unsigned int frame = 0;
 // For 1-player game only.
-#define WOBBLE_SECONDS	5
+#define WOBBLE_SECONDS	30
 #define WOBBLE_DELAY	(1*FPS)
 int wobble_timer;
 unsigned char drop;
@@ -601,9 +601,7 @@ int main(){
 					update_projectile(p);
 				}
 				if( players == 1 && ++wobble_timer > 0 ) {
-					if( do_wobble() ) {
-						game_over = 1;
-					}
+					game_over = do_wobble();
 				}
 			}
 
