@@ -34,6 +34,8 @@ typedef enum {
 	C_COUNT
 } colour_t;
 
+#define FPS 60
+
 // Number of first bubble tile in the set
 // (not literally, as first row is for blanks).
 #define BUBBLE_FIRST_TILE			0
@@ -55,7 +57,7 @@ typedef enum {
 #define BUBBLE_SLIVER_L				9
 #define BUBBLE_SLIVER_R				10
 
-#define FADE_SPEED			2
+#define FLIPPER_SPEED		2
 
 #define BUBBLE_WIDTH		12
 #define FIELD_OFFSET_X		2
@@ -72,12 +74,14 @@ typedef enum {
 
 #include "data/bg.inc"
 #include "data/sprites.inc"
+#include "data/title.inc"
 
 #define FIELD_BUBBLES_H		8
 #define FIELD_BUBBLES_V		11
 #define FIELD_TILES_H		12
 #define FIELD_TILES_V		11
 #define NUM_BUBBLES			83
+#define BUBBLE_ROWS			FIELD_TILES_V
 #define GEAR_ANIM_STEPS 	2
 
 // Pre-calcutated co-ordinates of arrow parts
@@ -127,6 +131,10 @@ const char traj_y[ANGLES] PROGMEM = {
 #define SPRITE_PROJ_L		6
 #define SPRITE_PROJ_R		8
 
+// Macriops for common calculations
+#define ROW_WIDTH(r)		(r%2 ? 7 : 8)
+#define FIRST_IN_ROW(r)		(((r/2)*15) + ((r%2)*8))
+
 // Structures
 typedef struct {
 	char angle;
@@ -137,7 +145,7 @@ typedef struct {
 
 // Globals
 #define PLAYERS 2
-unsigned char players = 2;
+unsigned char players = 1;
 unsigned char bubbles[PLAYERS][NUM_BUBBLES];
 unsigned char current[PLAYERS];
 unsigned char next[PLAYERS];
@@ -147,15 +155,20 @@ bool firing[PLAYERS];
 unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
 unsigned int frame = 0;
+// For 1-player game only.
+#define WOBBLE_SECONDS	5
+#define WOBBLE_DELAY	(1*FPS)
+int wobble_timer;
+unsigned char drop;
 
 
 void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player ) {
 	unsigned char x,y,xp,yp,b=0;
 
-	for( y=0 ; y < FIELD_TILES_V ; y++ ) {
+	for( y=0 ; y+drop < FIELD_TILES_V ; y++ ) {
 		for( x=0 ; x < FIELD_TILES_H ; x++ ) {
 			xp = x_pos+x;
-			yp = y_pos+y;
+			yp = y_pos+y+drop;
 			// Reasonable default...
 			SetTile( xp, yp, BUBBLE_FIELD_TILE );
 			if( y%2 == 0 ) {
@@ -261,13 +274,61 @@ void new_bubble( unsigned char player ) {
 	}
 }
 
+bool drop_bubbles( unsigned char player ) {
+	int i;
+	bool bottomed_out = false;
+	unsigned char last_row = BUBBLE_ROWS-1-drop;
+	
+	// Check if lowest row had bubbles.
+	for( i = FIRST_IN_ROW(last_row) ; i < FIRST_IN_ROW(last_row)+ROW_WIDTH(last_row) ; i++ ) {
+		if( bubbles[player][i] != C_BLANK ) {
+			bottomed_out = true;
+		}
+		bubbles[player][i] = C_BLANK;
+	}
+
+	drop++;
+	if( drop >= BUBBLE_ROWS ) {
+		// Fell of bottom of screen...
+		bottomed_out = 1;
+	}
+	
+	return bottomed_out;
+}
+
+bool do_wobble( void ) {
+	int second = wobble_timer/FPS;
+	bool bottomed_out = false;
+	
+	if( second < WOBBLE_SECONDS ) {
+		int step = FPS/(second+2);
+		if( wobble_timer % step == 0 ) {
+			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+drop-1, map_drop_bar_shake );
+		}
+		else if( wobble_timer % step == step/2 ) {
+			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+drop-1, map_drop_bar_normal );
+		}
+	}
+	else {
+		bottomed_out = drop_bubbles(0);
+		
+		draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
+		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+drop-2, map_drop_bar_clear );
+		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+drop-1, map_drop_bar_normal );
+		
+		wobble_timer = -WOBBLE_DELAY;
+	}
+	return bottomed_out;
+}
+
 bool proc_controls( unsigned char player ) {
 	bool changed = false;
+	int buttons = ReadJoypad(player);
 	
 	if( block_left[player]  ) block_left[player]--;
 	if( block_right[player] ) block_right[player]--;
 	
-	if( ReadJoypad(player) & BTN_LEFT ) {
+	if( buttons & BTN_LEFT ) {
 		if( !block_left[player] ) {
 			// Rotate left
 			angle[(int)player]--;
@@ -283,7 +344,7 @@ bool proc_controls( unsigned char player ) {
 		block_left[player] = 0;
 	}
 	
-	if( ReadJoypad(player) & BTN_RIGHT ) {
+	if( buttons & BTN_RIGHT ) {
 		if( !block_right[player] ) {
 			// Rotate right
 			angle[(int)player]++;
@@ -299,7 +360,7 @@ bool proc_controls( unsigned char player ) {
 		block_right[player] = 0;
 	}
 	
-	if( ReadJoypad(player) & (BTN_A|BTN_B|BTN_X|BTN_Y) ) {
+	if( buttons & (BTN_A|BTN_B|BTN_X|BTN_Y) ) {
 		if( !firing[player] ) {
 			// Fire!
 			proj[player].angle = angle[player];
@@ -400,76 +461,166 @@ void update_arrow( unsigned char player ) {
 			draw_arrow(	FIELD_CENTRE_1P, ((FIELD_OFFSET_Y + FIELD_TILES_H)*TILE_HEIGHT), player );
 
 			if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
-				DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2 , FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
+				DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2) , FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
 			}
 			else {
-				DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2, FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+				DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
 			}
 		}
 		else {
 			draw_arrow( FIELD_CENTRE_2P(player), (FIELD_OFFSET_Y + FIELD_TILES_H) * TILE_HEIGHT, player );
 
 			if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
-				DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
+				DrawMap2( FIELD_OFFSET_X + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
 			}
 			else {
-				DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+				DrawMap2( FIELD_OFFSET_X + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
 			}
 		}
 	}
 }
 
+void draw_map_flipper( unsigned char xp, unsigned char yp, const char *map ) {
+	int w = pgm_read_byte( map );
+	int h = pgm_read_byte( map+1 );
+	int x,y;
+	
+	for( x=1 ; x<w ; x+=2 ) {
+		for( y=0 ; y<h ; y++ ) {
+			SetTile( xp+x, yp+y, pgm_read_byte( map + 2 + (y*w)+x ) );
+		}
+		WaitVsync(FLIPPER_SPEED);
+		for( y=0 ; y<h ; y++ ) {
+			SetTile( xp+x-1, yp+y, pgm_read_byte( map + 2 + (y*w)+x - 1 ) );
+		}
+		WaitVsync(FLIPPER_SPEED);
+	}
+}
+
+void clear_screen_flipper( void ) {
+	int x,y;
+	
+	for( x=1 ; x<SCREEN_TILES_H ; x+=2 ) {
+		for( y=0 ; y<SCREEN_TILES_V ; y++ ) {
+			SetTile( x, y, 0 );
+		}
+		WaitVsync(FLIPPER_SPEED);
+		for( y=0 ; y<SCREEN_TILES_V ; y++ ) {
+			SetTile( x-1, y, 0 );
+		}
+		WaitVsync(FLIPPER_SPEED);
+	}
+}
+
 int main(){
-	int p;
-	SetTileTable(bg_tiles);
-	SetSpritesTileTable(sprite_tiles);
-	ClearVram();
-	FadeOut(0,true);
+	int p = 0;
+	bool game_over;
 
-	for( p = 0 ; p < 24 ; p++ ) {
-		bubbles[0][p] = random()%C_COUNT;
-		bubbles[1][p] = random()%C_COUNT;
-	}
+	while(1) {	
+		SetTileTable(title_tiles);
+		SetSpritesTileTable(sprite_tiles);
+		ClearVram();
+		SetSpriteVisibility(false);
 
-	if( players == 1 ) {
-		DrawMap2( 0, 0, map_field_1p );
-		draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
-	}
-	else {
-		DrawMap2( 0, 0, map_field_2p );
-		draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
-		draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X, FIELD_OFFSET_Y, 1 );
-	}
-
-	for( p=0 ; p<PLAYERS ; p++ ) {	
-		// Tile indeces of arrow parts.
-		sprites[SPRITE_ARROW+p].tileIndex = TILE_ARROW;
-		sprites[SPRITE_RING +p].tileIndex = TILE_RING;
-		sprites[SPRITE_RIVET+p].tileIndex = TILE_RIVET;
-
-		firing[p] = false;	
-		new_bubble(p); // Initialize next	
-		new_bubble(p); // Initialise current and next
-		update_projectile(p);
+		// Select number of players...
+		draw_map_flipper( 0, 0, map_player_select );
+		do {
+			int buttons;
 		
-		update_arrow(p);
-	}
-
-	FadeIn(FADE_SPEED,true);
-
-	while(1) {
-		WaitVsync(1);
-
-		for( p=0 ; p < players ; p++ ) {
-			if( proc_controls(p) ) {
-				update_arrow(p);
+			DrawMap2( 0, 0, map_player_select );
+			if( players == 1 ) {
+				DrawMap2( 2, 4, map_player_selector );
+				DrawMap2( 4, 6, map_1_player );
 			}
-			if( firing[p] ) {
-				update_projectile(p);
+			else {
+				DrawMap2( 16, 4, map_player_selector );
+				DrawMap2( 18, 6, map_2_player );
 			}
+		
+			while(ReadJoypad(0));
+		
+			buttons = 0;
+			while( !buttons ) {
+				 buttons = ReadJoypad(0);
+			}
+			if( buttons & (BTN_LEFT|BTN_RIGHT) ) {
+				players++;
+				if( players > 2 ) players = 1;
+			}
+			else if( buttons & BTN_START ) {
+				p = 1;
+			}
+		} while( p==0 );
+
+		clear_screen_flipper();
+		SetTileTable(bg_tiles);
+
+		for( p = 0 ; p < 23 ; p++ ) {
+			bubbles[0][p] = random()%C_COUNT;
+			bubbles[1][p] = random()%C_COUNT;
 		}
 
-		frame++;
+		if( players == 1 ) {
+			draw_map_flipper( 0, 0, map_field_1p );
+			draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
+		}
+		else {
+			draw_map_flipper( 0, 0, map_field_2p );
+			draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
+			draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X, FIELD_OFFSET_Y, 1 );
+		}
+
+		for( p=0 ; p<PLAYERS ; p++ ) {	
+			// Tile indeces of arrow parts.
+			sprites[SPRITE_ARROW+p].tileIndex = TILE_ARROW;
+			sprites[SPRITE_RING +p].tileIndex = TILE_RING;
+			sprites[SPRITE_RIVET+p].tileIndex = TILE_RIVET;
+
+			firing[p] = false;	
+			new_bubble(p); // Initialize next	
+			new_bubble(p); // Initialise current and next
+			update_projectile(p);
+		
+			update_arrow(p);
+		}
+	
+		drop = 0;
+		wobble_timer = -WOBBLE_DELAY;
+		game_over = false;
+	
+		SetSpriteVisibility(true);
+
+		while(!game_over) {
+			WaitVsync(1);
+
+			for( p=0 ; p < players ; p++ ) {
+				if( proc_controls(p) ) {
+					update_arrow(p);
+				}
+				if( firing[p] ) {
+					update_projectile(p);
+				}
+				if( players == 1 && ++wobble_timer > 0 ) {
+					if( do_wobble() ) {
+						game_over = 1;
+					}
+				}
+			}
+
+			frame++;
+		}
+		
+		if( players == 1 ) {
+			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
+		}
+		else {
+		
+		}
+		
+		while( ReadJoypad(0) == 0 && ReadJoypad(1) == 0 );
+		while( ReadJoypad(0) != 0 || ReadJoypad(1) != 0 );
+		SetSpriteVisibility(false);
+		clear_screen_flipper();
 	}
 }
 
