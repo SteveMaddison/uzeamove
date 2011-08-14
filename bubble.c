@@ -37,7 +37,7 @@ typedef enum {
 // Number of first bubble tile in the set
 // (not literally, as first row is for blanks).
 #define BUBBLE_FIRST_TILE			0
-#define BUBBLE_FIRST_COLOUR_TILE	15
+#define BUBBLE_FIRST_COLOUR_TILE	11
 // Background tile for play field
 #define BUBBLE_FIELD_TILE			1
 // Offsets for bubbles on even-numbered rows
@@ -55,8 +55,6 @@ typedef enum {
 #define BUBBLE_SLIVER_L				9
 #define BUBBLE_SLIVER_R				10
 
-#define BG_TILE1			11
-#define BG_TILES			4
 #define FADE_SPEED			2
 
 #define BUBBLE_WIDTH		12
@@ -397,24 +395,26 @@ void update_projectile( unsigned char player ) {
 }
 
 void update_arrow( unsigned char player ) {
-	if( players == 1 ) {
-		draw_arrow(	FIELD_CENTRE_1P, ((FIELD_OFFSET_Y + FIELD_TILES_H)*TILE_HEIGHT), player );
+	if( player < players ) {
+		if( players == 1 ) {
+			draw_arrow(	FIELD_CENTRE_1P, ((FIELD_OFFSET_Y + FIELD_TILES_H)*TILE_HEIGHT), player );
 
-		if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
-			DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2 , FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
+			if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
+				DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2 , FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
+			}
+			else {
+				DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2, FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+			}
 		}
 		else {
-			DrawMap2( ((SCREEN_TILES_H-FIELD_TILES_H)/2)+2, FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
-		}
-	}
-	else {
-		draw_arrow( FIELD_CENTRE_2P(player), (FIELD_OFFSET_Y + FIELD_TILES_H) * TILE_HEIGHT, player );
+			draw_arrow( FIELD_CENTRE_2P(player), (FIELD_OFFSET_Y + FIELD_TILES_H) * TILE_HEIGHT, player );
 
-		if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
-			DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
-		}
-		else {
-			DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+			if( angle[player] % GEAR_ANIM_STEPS == 0 ) {
+				DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears1 );
+			}
+			else {
+				DrawMap2( FIELD_OFFSET_X+2 + (P2_TILE_OFFSET*player), FIELD_OFFSET_Y+FIELD_TILES_V, map_gears2 );
+			}
 		}
 	}
 }
@@ -426,24 +426,18 @@ int main(){
 	ClearVram();
 	FadeOut(0,true);
 
-	for( p = 0 ; p < VRAM_TILES_H*VRAM_TILES_V ; p++ ) {
-		vram[p] = BG_TILE1 + RAM_TILES_COUNT + random()%BG_TILES;
-	}
-
 	for( p = 0 ; p < 24 ; p++ ) {
 		bubbles[0][p] = random()%C_COUNT;
 		bubbles[1][p] = random()%C_COUNT;
 	}
 
 	if( players == 1 ) {
-		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2 - 1, FIELD_OFFSET_Y - 1, map_field );
+		DrawMap2( 0, 0, map_field_1p );
 		draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
 	}
 	else {
-		DrawMap2( FIELD_OFFSET_X - 1, FIELD_OFFSET_Y - 1, map_field );
+		DrawMap2( 0, 0, map_field_2p );
 		draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
-
-		DrawMap2( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X - 1, FIELD_OFFSET_Y - 1, map_field );
 		draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X, FIELD_OFFSET_Y, 1 );
 	}
 

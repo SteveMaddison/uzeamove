@@ -4,9 +4,12 @@
 	<output file="../data/bg.inc">
 		<tiles var-name="bg_tiles"/>
 		<maps pointers-size="8">
-			<map var-name="map_field" left="0" top="10" width="14" height="15"/>
-			<map var-name="map_gears1" left="3" top="22" width="3" height="2"/>
-			<map var-name="map_gears2" left="0" top="25" width="3" height="2"/>
+			<map var-name="map_field_2p" left="0" top="10" width="30" height="18"/>
+			<map var-name="map_field_1p" left="0" top="28" width="30" height="18"/>
+			<map var-name="map_gears1" left="4" top="23" width="3" height="2"/>
+			<map var-name="map_gears2" left="10" top="8" width="3" height="2"/>
+			<map var-name="map_win" left="0" top="46" width="12" height="4"/>
+			<map var-name="map_lose" left="13" top="46" width="12" height="4"/>
 		</maps>
 	</output>
 </gfx-xform>
