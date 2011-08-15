@@ -60,7 +60,7 @@ LINKONLYOBJECTS =
 INCLUDES = -I"$(KERNEL_DIR)" 
 
 ## Included data files
-DATA_FILES = ../data/bg.inc ../data/sprites.inc #../data/title.inc
+DATA_FILES = ../data/bg.inc ../data/sprites.inc ../data/title2.inc
 
 ## Build
 all: $(TARGET) $(GAME).hex $(GAME).eep $(GAME).lss $(GAME).uze
@@ -74,6 +74,10 @@ all: $(TARGET) $(GAME).hex $(GAME).eep $(GAME).lss $(GAME).uze
 ../data/title.inc: ../data/title.png ../data/title.gconvert.xml
 	gconvert ../data/title.gconvert.xml
 
+../data/title2.inc: ../data/title2.png ../data/title2.gconvert.xml
+	gconvert ../data/title2.gconvert.xml
+
+## Compile Kernel files
 ## Compile Kernel files
 uzeboxVideoEngineCore.o: $(KERNEL_DIR)/uzeboxVideoEngineCore.s
 	$(CC) $(INCLUDES) $(ASMFLAGS) -c  $<

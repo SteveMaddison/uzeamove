@@ -77,6 +77,8 @@ typedef enum {
 #ifndef TITLE_MISSING
 #include "data/title.inc"
 #endif
+#include "data/title2.inc"
+#define FIRST_TEXT_TILE		1
 
 #define FIELD_BUBBLES_H		8
 #define FIELD_BUBBLES_V		11
@@ -133,7 +135,7 @@ const char traj_y[ANGLES] PROGMEM = {
 #define SPRITE_PROJ_L		6
 #define SPRITE_PROJ_R		8
 
-// Macriops for common calculations
+// Macros for common calculations
 #define ROW_WIDTH(r)		(r%2 ? 7 : 8)
 #define FIRST_IN_ROW(r)		(((r/2)*15) + ((r%2)*8))
 
@@ -147,7 +149,7 @@ typedef struct {
 
 // Globals
 #define PLAYERS 2
-unsigned char players = 1;
+unsigned char players = 2;
 unsigned char bubbles[PLAYERS][NUM_BUBBLES];
 unsigned char current[PLAYERS];
 unsigned char next[PLAYERS];
@@ -397,6 +399,19 @@ void draw_arrow( unsigned char x, unsigned char y, unsigned char player ) {
 	}
 }
 
+void draw_projectile( unsigned char player ) {
+	if( players == 1 ) {
+		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_1P + (proj[player].x/TRAJ_FACTOR);
+	}
+	else {
+		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_2P(player) + (proj[player].x/TRAJ_FACTOR);
+	}
+	sprites[SPRITE_PROJ_R+player].x = sprites[SPRITE_PROJ_L+player].x + TILE_WIDTH;
+
+	sprites[SPRITE_PROJ_L+player].y = (FIELD_OFFSET_Y*TILE_HEIGHT) + (proj[player].y/TRAJ_FACTOR);
+	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
+}
+
 void update_projectile( unsigned char player ) {
 	if( firing[player] ) {
 		proj[player].y -= pgm_read_byte( traj_y + proj[player].angle );
@@ -418,22 +433,52 @@ void update_projectile( unsigned char player ) {
 		}
 	}
 
-	if( proj[player].y < 0 ) {
-		new_bubble(player);
-		firing[player] = false;
-		update_projectile(player);
-	}
+	draw_projectile( player );
 
-	if( players == 1 ) {
-		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_1P + (proj[player].x/TRAJ_FACTOR);
-	}
-	else {
-		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_2P(player) + (proj[player].x/TRAJ_FACTOR);
-	}
-	sprites[SPRITE_PROJ_R+player].x = sprites[SPRITE_PROJ_L+player].x + TILE_WIDTH;
+	// Collision check
+	unsigned char row = proj[player].y/TRAJ_FACTOR/BUBBLE_ROWS;
+	if( row < BUBBLE_ROWS ) {
+		unsigned char column;
 
-	sprites[SPRITE_PROJ_L+player].y = (FIELD_OFFSET_Y*TILE_HEIGHT) + (proj[player].y/TRAJ_FACTOR);
-	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
+		if( angle[player] >= 0 ) {
+			// Moving right, check top right corner.
+			column = ( (proj[player].x/TRAJ_FACTOR) + (BUBBLE_WIDTH-1) -(row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
+		}
+		else {
+			// Moving left, check top left corner.
+			column = ( (proj[player].x/TRAJ_FACTOR) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
+		}
+
+		if( row%2 && column > 6 ) {
+			// Odd rows have less columns.
+			column = 6;
+		}
+	
+		if( bubbles[player][ FIRST_IN_ROW(row) + column] != C_BLANK ) {
+			if( angle[player] >= 0 ) {
+				bubbles[player][ FIRST_IN_ROW(row+1) + column] = current[player];
+			}
+			else {
+				bubbles[player][ FIRST_IN_ROW(row+1) + column - 1 ] = current[player];
+			}
+
+			if( players == 1 ) {
+				draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
+			}
+			else {
+				if( player == 1 ) {
+					draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
+				}
+				else {
+					draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X, FIELD_OFFSET_Y, 1 );
+				}
+			}
+
+			new_bubble(player);
+			firing[player] = false;
+			draw_projectile(player);
+		}
+	}
 }
 
 void update_arrow( unsigned char player ) {
@@ -491,19 +536,74 @@ void clear_screen_flipper( void ) {
 		}
 		WaitVsync(FLIPPER_SPEED);
 	}
+
+	ClearVram();
+}
+
+void draw_bg( unsigned char bg_frame ) {
+	int x,y;
+
+	for( x=0 ; x<5 ; x++ ) {
+		for( y=0 ; y<3 ; y++ ) {
+			DrawMap2( x*6, y*6, map_bg0 + (sizeof(map_bg0)*(bg_frame)) );
+		}
+	}
+}
+
+void text_write( char x, char y, const char *text ) {
+	char *p = (char*)text;
+	unsigned char t = 0;
+	
+	while( *p ) {
+		if ( *p >= 'A' && *p <= 'Z' ) {
+			t = *p - 'A' + 11;
+		}
+		else if( *p >= '0' && *p <= '9' ) {
+			t = *p - '0' + 1;
+		}
+		else {
+			switch( *p ) {
+				case '.': t=37; break;
+				case '!': t=38; break;
+				case '/': t=39; break;
+				case 'c': t=40; break;
+				default: t = 0; // blank
+			}
+		}
+		if( t ) {
+			SetTile(x, y, t + FIRST_TEXT_TILE );
+		}
+		x++;
+		p++;
+	}
 }
 
 int main(){
 	int p = 0;
 	bool game_over;
 
+	while(ReadJoypad(0));
 	while(1) {	
 #ifndef TITLE_MISSING
 		SetTileTable(title_tiles);
 #endif
+		SetTileTable(title2_tiles);
 		SetSpritesTileTable(sprite_tiles);
 		ClearVram();
 		SetSpriteVisibility(false);
+
+		frame = 0;
+		while( !(ReadJoypad(0) & BTN_START) ) {
+			WaitVsync(2);
+			draw_bg( frame % 12 );
+			DrawMap2( 4,4, map_title );
+			if( frame % FPS < FPS/2 ) {
+				text_write( 10,12, "PUSH START" );
+			}
+			text_write( 5,16, "c2011 STEVE MADDISON" );
+			frame++;
+			if( frame % (FPS*12) == 0 ) frame = 0;
+		}
 
 #ifndef TITLE_MISSING
 		// Select number of players...
@@ -535,9 +635,9 @@ int main(){
 				p = 1;
 			}
 		} while( p==0 );
+#endif
 
 		clear_screen_flipper();
-#endif
 		SetTileTable(bg_tiles);
 
 		for( p = 0 ; p < 23 ; p++ ) {
