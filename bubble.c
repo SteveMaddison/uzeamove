@@ -74,7 +74,9 @@ typedef enum {
 
 #include "data/bg.inc"
 #include "data/sprites.inc"
+#ifndef TITLE_MISSING
 #include "data/title.inc"
+#endif
 
 #define FIELD_BUBBLES_H		8
 #define FIELD_BUBBLES_V		11
@@ -156,8 +158,8 @@ unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
 unsigned int frame = 0;
 // For 1-player game only.
-#define WOBBLE_SECONDS	30
-#define WOBBLE_DELAY	(1*FPS)
+#define WOBBLE_SECONDS	5
+#define WOBBLE_DELAY	(30*FPS)
 int wobble_timer;
 unsigned char drop;
 
@@ -400,38 +402,17 @@ void update_projectile( unsigned char player ) {
 		proj[player].y -= pgm_read_byte( traj_y + proj[player].angle );
 	
 		if( proj[player].angle >= 0 ) {
+			int edge = ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * TRAJ_FACTOR;
 			proj[player].x += pgm_read_byte( traj_x + proj[player].angle );
-			if( proj[player].x >= ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * TRAJ_FACTOR ) {
-				// Handle bounce. Until we're back on the board, step back
-				// through the last step we made. This calls for increased
-				// precision...
-				proj[player].x *= TRAJ_FACTOR;
-				proj[player].y *= TRAJ_FACTOR;
-			
-				while( proj[player].x >= ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * (TRAJ_FACTOR*TRAJ_FACTOR) ) {
-					proj[player].x -= pgm_read_byte( traj_x + proj[player].angle );
-					proj[player].y += pgm_read_byte( traj_y + proj[player].angle );
-				}
-
-				proj[player].x /= TRAJ_FACTOR;
-				proj[player].y /= TRAJ_FACTOR;
+			if( proj[player].x >= edge ) {
+				proj[player].x = edge - (proj[player].x-edge);
 				proj[player].angle = -proj[player].angle;
 			}
 		}
 		else {
 			proj[player].x -= pgm_read_byte( traj_x - proj[player].angle );
-			while( proj[player].x < 0 ) {
-				// Handle bounce
-				proj[player].x *= TRAJ_FACTOR;
-				proj[player].y *= TRAJ_FACTOR;
-			
-				while( proj[player].x < 0 ) {
-					proj[player].x += pgm_read_byte( traj_x + proj[player].angle );
-					proj[player].y += pgm_read_byte( traj_y + proj[player].angle );
-				}
-
-				proj[player].x /= TRAJ_FACTOR;
-				proj[player].y /= TRAJ_FACTOR;
+			if( proj[player].x < 0 ) {
+				proj[player].x = 0 - proj[player].x;
 				proj[player].angle = -proj[player].angle;
 			}
 		}
@@ -517,11 +498,14 @@ int main(){
 	bool game_over;
 
 	while(1) {	
+#ifndef TITLE_MISSING
 		SetTileTable(title_tiles);
+#endif
 		SetSpritesTileTable(sprite_tiles);
 		ClearVram();
 		SetSpriteVisibility(false);
 
+#ifndef TITLE_MISSING
 		// Select number of players...
 		draw_map_flipper( 0, 0, map_player_select );
 		do {
@@ -553,6 +537,7 @@ int main(){
 		} while( p==0 );
 
 		clear_screen_flipper();
+#endif
 		SetTileTable(bg_tiles);
 
 		for( p = 0 ; p < 23 ; p++ ) {
@@ -571,7 +556,7 @@ int main(){
 		}
 
 		for( p=0 ; p<PLAYERS ; p++ ) {	
-			// Tile indeces of arrow parts.
+			// Tile indices of arrow parts.
 			sprites[SPRITE_ARROW+p].tileIndex = TILE_ARROW;
 			sprites[SPRITE_RING +p].tileIndex = TILE_RING;
 			sprites[SPRITE_RIVET+p].tileIndex = TILE_RIVET;
