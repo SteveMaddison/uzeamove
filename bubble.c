@@ -516,26 +516,39 @@ void update_projectile( unsigned char player ) {
 	// Collision check
 	row = (proj[player].y/TRAJ_FACTOR/BUBBLE_ROWS) - drop;
 	if( row < BUBBLE_ROWS ) {
-		unsigned char column;
+		unsigned char column_l,column_r;
+		bool hit_l,hit_r;
 
-		if( angle[player] >= 0 ) {
-			// Moving right, check top right corner.
-			column = ( (proj[player].x/TRAJ_FACTOR) + (BUBBLE_WIDTH-1) -(row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
-		}
-		else {
-			// Moving left, check top left corner.
-			column = ( (proj[player].x/TRAJ_FACTOR) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
-		}
+		column_l = ( (proj[player].x/TRAJ_FACTOR) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
+		column_r = ( (proj[player].x/TRAJ_FACTOR) + (BUBBLE_WIDTH/2) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
 
-		if( row%2 && column > 6 ) {
+		if( row%2 ) { 
 			// Odd rows have less columns.
-			column = 6;
+			if( column_l > 6 ) column_l = 6;
+			if( column_r > 6 ) column_r = 6;
 		}
 
-		if( bubbles[player][ FIRST_IN_ROW(row) + column ] != C_BLANK ) {
-			row++;
-			bubbles[player][ FIRST_IN_ROW(row) + column ] = current[player];
+		hit_l = (bubbles[player][ FIRST_IN_ROW(row) + column_l ] != C_BLANK);
+		hit_r = (bubbles[player][ FIRST_IN_ROW(row) + column_r ] != C_BLANK);
 
+		if( hit_l || hit_r ) {
+			int candidate = FIRST_IN_ROW(row);
+			set_score( player, 99000000 + 1000*(hit_l?1:0) + (hit_r?1:0) );
+
+			if( hit_l && hit_r ) {
+				// Both sides, setting in middle.
+				candidate += column_l + 8;
+			}
+			else if( hit_l && !hit_r ) {
+				// Left only, favour right
+				candidate += column_l + 8;
+			}
+			else {
+				// Right only, favour left
+				candidate += column_l + 8;
+			}
+
+			bubbles[player][candidate] = current[player];
 			draw_field( player );
 
 			new_bubble( player );
