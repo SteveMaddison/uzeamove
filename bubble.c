@@ -57,6 +57,8 @@ typedef enum {
 #define BUBBLE_SLIVER_L				9
 #define BUBBLE_SLIVER_R				10
 
+#define BG_SPACE_TILE		117
+
 #define FLIPPER_SPEED		2
 
 #define BUBBLE_WIDTH		12
@@ -136,7 +138,7 @@ const char traj_y[ANGLES] PROGMEM = {
 #define SPRITE_PROJ_R		8
 
 // Macros for common calculations
-#define ROW_WIDTH(r)		(r%2 ? 7 : 8)
+#define ROW_WIDTH(r)		((r)%2 ? 7 : 8)
 #define FIRST_IN_ROW(r)		(((r/2)*15) + ((r%2)*8))
 
 // Structures
@@ -158,6 +160,7 @@ projectile_t proj[PLAYERS];
 bool firing[PLAYERS];
 unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
+long score[PLAYERS];
 unsigned int frame = 0;
 // For 1-player game only.
 #define WOBBLE_SECONDS	5
@@ -165,14 +168,76 @@ unsigned int frame = 0;
 int wobble_timer;
 unsigned char drop;
 
+typedef enum {
+	ALIGN_LEFT=0,
+	ALIGN_RIGHT
+} align_t;
 
-void draw_field( unsigned char x_pos, unsigned char y_pos, unsigned char player ) {
+void text_write_number( char x, char y, unsigned long num, align_t align, unsigned char space_tile ) {
+	char digits[15];
+	int pos = 0;
+	
+	digits[pos] = 0;
+
+	while(num > 0) {
+		digits[pos] = num%10;
+		num -= digits[pos];
+		num /= 10;
+		pos++;
+	}
+
+	if( align == ALIGN_RIGHT ) x-=(pos-1);
+
+	if(pos == 0) {
+		if( align == ALIGN_RIGHT ) x--;
+		pos++;
+	}
+	while(--pos >= 0) {
+		SetTile( x++, y, digits[pos] + space_tile );
+	}
+}
+
+void text_write( char x, char y, const char *text ) {
+	char *p = (char*)text;
+	unsigned char t = 0;
+	
+	while( *p ) {
+		if ( *p >= 'A' && *p <= 'Z' ) {
+			t = *p - 'A' + 11;
+		}
+		else if( *p >= '0' && *p <= '9' ) {
+			t = *p - '0' + 1;
+		}
+		else {
+			switch( *p ) {
+				case '.': t=37; break;
+				case '!': t=38; break;
+				case '/': t=39; break;
+				case 'c': t=40; break;
+				default: t = 0; // blank
+			}
+		}
+		if( t ) {
+			SetTile(x, y, t + FIRST_TEXT_TILE );
+		}
+		x++;
+		p++;
+	}
+}
+
+void draw_field( unsigned char player ) {
 	unsigned char x,y,xp,yp,b=0;
 
 	for( y=0 ; y+drop < FIELD_TILES_V ; y++ ) {
 		for( x=0 ; x < FIELD_TILES_H ; x++ ) {
-			xp = x_pos+x;
-			yp = y_pos+y+drop;
+			if( players == 1 ) {
+				xp = ((SCREEN_TILES_H-FIELD_TILES_H)/2) + x;
+			}
+			else {
+				xp = FIELD_OFFSET_X + (P2_TILE_OFFSET*player) + x;
+			}
+			yp = FIELD_OFFSET_Y + y + drop;
+
 			// Reasonable default...
 			SetTile( xp, yp, BUBBLE_FIELD_TILE );
 			if( y%2 == 0 ) {
@@ -316,7 +381,7 @@ bool do_wobble( void ) {
 	else {
 		bottomed_out = drop_bubbles(0);
 		
-		draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
+		draw_field(0);
 		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+drop-2, map_drop_bar_clear );
 		DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+drop-1, map_drop_bar_normal );
 		
@@ -399,6 +464,19 @@ void draw_arrow( unsigned char x, unsigned char y, unsigned char player ) {
 	}
 }
 
+void set_score( unsigned char player, long s ) {
+#define MAX_SCORE 99999999
+	score[player] = s;
+	if( score[player] > MAX_SCORE ) score[player] = MAX_SCORE;
+
+	if( players == 1 ) {
+		text_write_number( 18, 16, score[player], ALIGN_RIGHT, BG_SPACE_TILE );
+	}
+	else {
+		text_write_number( 11+(P2_TILE_OFFSET*player), 16, score[player], ALIGN_RIGHT, BG_SPACE_TILE );
+	}
+}
+
 void draw_projectile( unsigned char player ) {
 	if( players == 1 ) {
 		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_1P + (proj[player].x/TRAJ_FACTOR);
@@ -413,6 +491,8 @@ void draw_projectile( unsigned char player ) {
 }
 
 void update_projectile( unsigned char player ) {
+	unsigned char row;
+
 	if( firing[player] ) {
 		proj[player].y -= pgm_read_byte( traj_y + proj[player].angle );
 	
@@ -433,10 +513,8 @@ void update_projectile( unsigned char player ) {
 		}
 	}
 
-	draw_projectile( player );
-
 	// Collision check
-	unsigned char row = proj[player].y/TRAJ_FACTOR/BUBBLE_ROWS;
+	row = (proj[player].y/TRAJ_FACTOR/BUBBLE_ROWS) - drop;
 	if( row < BUBBLE_ROWS ) {
 		unsigned char column;
 
@@ -453,32 +531,19 @@ void update_projectile( unsigned char player ) {
 			// Odd rows have less columns.
 			column = 6;
 		}
-	
-		if( bubbles[player][ FIRST_IN_ROW(row) + column] != C_BLANK ) {
-			if( angle[player] >= 0 ) {
-				bubbles[player][ FIRST_IN_ROW(row+1) + column] = current[player];
-			}
-			else {
-				bubbles[player][ FIRST_IN_ROW(row+1) + column - 1 ] = current[player];
-			}
 
-			if( players == 1 ) {
-				draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
-			}
-			else {
-				if( player == 1 ) {
-					draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
-				}
-				else {
-					draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X, FIELD_OFFSET_Y, 1 );
-				}
-			}
+		if( bubbles[player][ FIRST_IN_ROW(row) + column ] != C_BLANK ) {
+			row++;
+			bubbles[player][ FIRST_IN_ROW(row) + column ] = current[player];
 
-			new_bubble(player);
+			draw_field( player );
+
+			new_bubble( player );
 			firing[player] = false;
-			draw_projectile(player);
 		}
 	}
+
+	draw_projectile( player );
 }
 
 void update_arrow( unsigned char player ) {
@@ -547,34 +612,6 @@ void draw_bg( unsigned char bg_frame ) {
 		for( y=0 ; y<3 ; y++ ) {
 			DrawMap2( x*6, y*6, map_bg0 + (sizeof(map_bg0)*(bg_frame)) );
 		}
-	}
-}
-
-void text_write( char x, char y, const char *text ) {
-	char *p = (char*)text;
-	unsigned char t = 0;
-	
-	while( *p ) {
-		if ( *p >= 'A' && *p <= 'Z' ) {
-			t = *p - 'A' + 11;
-		}
-		else if( *p >= '0' && *p <= '9' ) {
-			t = *p - '0' + 1;
-		}
-		else {
-			switch( *p ) {
-				case '.': t=37; break;
-				case '!': t=38; break;
-				case '/': t=39; break;
-				case 'c': t=40; break;
-				default: t = 0; // blank
-			}
-		}
-		if( t ) {
-			SetTile(x, y, t + FIRST_TEXT_TILE );
-		}
-		x++;
-		p++;
 	}
 }
 
@@ -647,12 +684,12 @@ int main(){
 
 		if( players == 1 ) {
 			draw_map_flipper( 0, 0, map_field_1p );
-			draw_field( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y, 0 );
+			draw_field(0);
 		}
 		else {
 			draw_map_flipper( 0, 0, map_field_2p );
-			draw_field( FIELD_OFFSET_X, FIELD_OFFSET_Y, 0 );
-			draw_field( SCREEN_TILES_H - FIELD_TILES_H - FIELD_OFFSET_X, FIELD_OFFSET_Y, 1 );
+			draw_field(0);
+			draw_field(1);
 		}
 
 		for( p=0 ; p<PLAYERS ; p++ ) {	
@@ -664,9 +701,10 @@ int main(){
 			firing[p] = false;	
 			new_bubble(p); // Initialize next	
 			new_bubble(p); // Initialise current and next
-			update_projectile(p);
+			draw_projectile(p);
 		
 			update_arrow(p);
+			set_score( p, 0 );
 		}
 	
 		drop = 0;
