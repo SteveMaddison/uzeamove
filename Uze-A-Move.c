@@ -58,6 +58,8 @@ typedef enum {
 #define BUBBLE_SLIVER_R				10
 
 #define BG_SPACE_TILE		117
+#define TILE_SHINE_TOP		42
+#define TILE_SHINE_BOTTOM	43
 
 #define FLIPPER_SPEED		2
 
@@ -654,13 +656,30 @@ int main(){
 		frame = 0;
 		p = 1;
 		while( 1 ) {
+			unsigned char shine_offset;
 			WaitVsync(2);
 			draw_bg( frame % 12 );
 			DrawMap2( 3,4, map_title );
+
+			shine_offset = frame%(FPS+(FPS/2));
+			if( shine_offset < 22 ) {
+				SetTile( 4+shine_offset, 4, TILE_SHINE_TOP );
+			}
+			if( shine_offset > 1 && shine_offset < 24 ) {
+				SetTile( 4+shine_offset-2, 4, TILE_SHINE_TOP );
+			}
+			if( shine_offset >= 7 && shine_offset < 29 ) {
+				SetTile( 4+shine_offset-7, 8, TILE_SHINE_BOTTOM );
+			}
+			if( shine_offset >= 9 && shine_offset < 31 ) {
+				SetTile( 4+shine_offset-7-2, 8, TILE_SHINE_BOTTOM );
+			}
+
 			if( frame % FPS < FPS/2 ) {
 				text_write( 10,12, "PUSH START" );
 			}
 			text_write( 5,16, "c2011 STEVE MADDISON" );
+
 			frame++;
 			if( frame % (FPS*12) == 0 ) frame = 0;
 
@@ -675,6 +694,7 @@ int main(){
 		// Select number of players...
 		p = 1;
 		while(1) {
+			unsigned char shine_offset;
 			int buttons;
 			WaitVsync(2);
 			draw_bg( frame % 12 );
@@ -683,15 +703,30 @@ int main(){
 
 			if( players == 1 ) {
 				DrawMap2( 2, 4, map_player_selected );
-				DrawMap2( 16, 4, map_player_deselected );
+				DrawMap2( 2+P2_TILE_OFFSET, 4, map_player_deselected );
 			}
 			else {
 				DrawMap2( 2, 4, map_player_deselected );
-				DrawMap2( 16, 4, map_player_selected );
+				DrawMap2( 2+P2_TILE_OFFSET, 4, map_player_selected );
 			}
 			DrawMap2( 4, 5, map_1_player );
-			DrawMap2( 18, 5, map_2_player );
+			DrawMap2( 4+P2_TILE_OFFSET, 5, map_2_player );
+
 			text_write( 8,14, "SELECT PLAYERS" );
+
+			shine_offset = frame%(FPS+(FPS/2));
+			if( shine_offset < 10 ) {
+				SetTile( 3+shine_offset+(P2_TILE_OFFSET*(players-1)), 4, TILE_SHINE_TOP );
+			}
+			if( shine_offset > 1 && shine_offset < 12 ) {
+				SetTile( 3+shine_offset+(P2_TILE_OFFSET*(players-1))-2, 4, TILE_SHINE_TOP );
+			}
+			if( shine_offset >= 7 && shine_offset < 17 ) {
+				SetTile( 3+shine_offset+(P2_TILE_OFFSET*(players-1))-7, 10, TILE_SHINE_BOTTOM );
+			}
+			if( shine_offset >= 9 && shine_offset < 19 ) {
+				SetTile( 3+shine_offset+(P2_TILE_OFFSET*(players-1))-7-2, 10, TILE_SHINE_BOTTOM );
+			}
 
 			buttons = ReadJoypad(0);
 			if( buttons & BTN_LEFT ) {
