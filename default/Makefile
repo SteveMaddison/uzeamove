@@ -3,8 +3,8 @@
 ###############################################################################
 
 ## General Flags
-PROJECT = bubble
-GAME= bubble
+PROJECT = Uze-A-Move
+GAME= Uze-A-Move
 MCU = atmega644
 TARGET = $(GAME).elf
 CC = avr-gcc

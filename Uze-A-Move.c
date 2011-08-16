@@ -398,7 +398,7 @@ bool proc_controls( unsigned char player ) {
 	if( buttons & BTN_LEFT ) {
 		if( !block_left[player] ) {
 			// Rotate left
-//			TriggerFx( PATCH_TICK, 0x80, true );
+			TriggerFx( PATCH_TICK, 0x80, true );
 			angle[(int)player]--;
 			if( angle[(int)player] < -(ANGLES-1) ) {
 				angle[(int)player] = -(ANGLES-1);
@@ -415,7 +415,7 @@ bool proc_controls( unsigned char player ) {
 	if( buttons & BTN_RIGHT ) {
 		if( !block_right[player] ) {
 			// Rotate right
-//			TriggerFx( PATCH_TICK, 0x80, true );
+			TriggerFx( PATCH_TICK, 0x80, true );
 			angle[(int)player]++;
 			if( angle[(int)player] > ANGLES-1 ) {
 				angle[(int)player] = ANGLES-1;
@@ -434,7 +434,7 @@ bool proc_controls( unsigned char player ) {
 			// Fire!
 			proj[player].angle = angle[player];
 			firing[player] = true;
-//			TriggerFx( PATCH_SHOOT, 0xff, true );
+			TriggerFx( PATCH_SHOOT, 0xff, true );
 		}
 	}
 	return changed;
@@ -782,7 +782,7 @@ int main(){
 		// Game over
 		if( players == 1 ) {
 			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
-//			TriggerFx( PATCH_LOSE, 0xff, true );
+			TriggerFx( PATCH_LOSE, 0xff, true );
 		}
 		else {
 			if( loser == 0 ) {
