@@ -86,7 +86,7 @@ typedef enum {
 #define FIELD_BUBBLES_V		11
 #define FIELD_TILES_H		12
 #define FIELD_TILES_V		11
-#define NUM_BUBBLES			83
+#define NUM_BUBBLES			(8*6)+(7*5)
 #define BUBBLE_ROWS			FIELD_TILES_V
 #define GEAR_ANIM_STEPS 	2
 
@@ -303,7 +303,7 @@ void draw_field( unsigned char player ) {
 								}
 							}
 						}
-						else {
+						if( x == FIELD_TILES_H-1 ) {
 							b--;
 						}
 						b++;
@@ -518,15 +518,16 @@ bool update_projectile( unsigned char player ) {
 	}
 
 	// Collision check
-	row = (proj[player].y/TRAJ_FACTOR/BUBBLE_ROWS) - drop;
+#define FUDGE 2
+	row = (((proj[player].y/TRAJ_FACTOR)+FUDGE)/BUBBLE_ROWS) - drop;
 	if( row < BUBBLE_ROWS ) {
 		unsigned char column_l,column_r;
 		bool hit_l,hit_r;
 
-		column_l = ( (proj[player].x/TRAJ_FACTOR) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
-		column_r = ( (proj[player].x/TRAJ_FACTOR) + (BUBBLE_WIDTH/2) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
+		column_l = ( (proj[player].x/TRAJ_FACTOR) + FUDGE - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
+		column_r = ( (proj[player].x/TRAJ_FACTOR) - FUDGE + (BUBBLE_WIDTH/2) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
 
-		if( row%2 ) { 
+		if( row%2 ) {
 			// Odd rows have less columns.
 			if( column_l > 6 ) column_l = 6;
 			if( column_r > 6 ) column_r = 6;
@@ -545,10 +546,16 @@ bool update_projectile( unsigned char player ) {
 			else if( hit_l && !hit_r ) {
 				// Left only, favour right
 				candidate += column_l + 8;
+				if( bubbles[player][candidate] != C_BLANK ) {
+					candidate--;
+				}
 			}
 			else {
 				// Right only, favour left
 				candidate += column_r + 7;
+				if( bubbles[player][candidate] != C_BLANK ) {
+					candidate++;
+				}
 			}
 
 			if( candidate > NUM_BUBBLES-1 ) {
@@ -759,10 +766,12 @@ int main(){
 			bubbles[0][p] = C_BLANK;
 			bubbles[1][p] = C_BLANK;
 		}
-		for( p = 0 ; p < 23 ; p++ ) {
+		for( p = 0 ; p < (3*8)+(2*7) ; p++ ) {
 			bubbles[0][p] = random()%C_COUNT;
 			bubbles[1][p] = random()%C_COUNT;
 		}
+
+		drop = 0;
 
 		if( players == 1 ) {
 			draw_map_flipper( 0, 0, map_field_1p );
@@ -790,7 +799,6 @@ int main(){
 			set_score( p, 0 );
 		}
 	
-		drop = 0;
 		wobble_timer = -WOBBLE_DELAY;
 		game_over = false;
 	
