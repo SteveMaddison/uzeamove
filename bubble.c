@@ -77,6 +77,7 @@ typedef enum {
 #include "data/bg.inc"
 #include "data/sprites.inc"
 #include "data/title.inc"
+#include "data/patches.inc"
 #define FIRST_TEXT_TILE		1
 
 #define FIELD_BUBBLES_H		8
@@ -431,6 +432,7 @@ bool proc_controls( unsigned char player ) {
 			// Fire!
 			proj[player].angle = angle[player];
 			firing[player] = true;
+			TriggerFx( PATCH_SHOOT, 0xff, true );
 		}
 	}
 	return changed;
@@ -636,7 +638,9 @@ int main(){
 	bool game_over;
 	unsigned char loser = 0;
 
-	while(1) {	
+	InitMusicPlayer(patches);
+
+	while(1) {
 		SetTileTable(title_tiles);
 		SetSpritesTileTable(sprite_tiles);
 		ClearVram();
@@ -772,6 +776,7 @@ int main(){
 		// Game over
 		if( players == 1 ) {
 			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
+			TriggerFx( PATCH_LOSE, 0xff, true );
 		}
 		else {
 			if( loser == 0 ) {
