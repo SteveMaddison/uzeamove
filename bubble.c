@@ -76,10 +76,7 @@ typedef enum {
 
 #include "data/bg.inc"
 #include "data/sprites.inc"
-#ifndef TITLE_MISSING
 #include "data/title.inc"
-#endif
-#include "data/title2.inc"
 #define FIRST_TEXT_TILE		1
 
 #define FIELD_BUBBLES_H		8
@@ -151,7 +148,7 @@ typedef struct {
 
 // Globals
 #define PLAYERS 2
-unsigned char players = 2;
+unsigned char players = 1;
 unsigned char bubbles[PLAYERS][NUM_BUBBLES];
 unsigned char current[PLAYERS];
 unsigned char next[PLAYERS];
@@ -490,7 +487,8 @@ void draw_projectile( unsigned char player ) {
 	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
 }
 
-void update_projectile( unsigned char player ) {
+bool update_projectile( unsigned char player ) {
+	bool bottomed_out = false;
 	unsigned char row;
 
 	if( firing[player] ) {
@@ -533,7 +531,6 @@ void update_projectile( unsigned char player ) {
 
 		if( hit_l || hit_r ) {
 			int candidate = FIRST_IN_ROW(row);
-			set_score( player, 99000000 + 1000*(hit_l?1:0) + (hit_r?1:0) );
 
 			if( hit_l && hit_r ) {
 				// Both sides, setting in middle.
@@ -545,18 +542,24 @@ void update_projectile( unsigned char player ) {
 			}
 			else {
 				// Right only, favour left
-				candidate += column_l + 8;
+				candidate += column_r + 7;
 			}
 
-			bubbles[player][candidate] = current[player];
-			draw_field( player );
+			if( candidate > NUM_BUBBLES-1 ) {
+				bottomed_out = true;
+			}
+			else {
+				bubbles[player][candidate] = current[player];
+				draw_field( player );
 
-			new_bubble( player );
-			firing[player] = false;
+				new_bubble( player );
+				firing[player] = false;
+			}
 		}
 	}
 
 	draw_projectile( player );
+	return bottomed_out;
 }
 
 void update_arrow( unsigned char player ) {
@@ -603,7 +606,7 @@ void draw_map_flipper( unsigned char xp, unsigned char yp, const char *map ) {
 
 void clear_screen_flipper( void ) {
 	int x,y;
-	
+
 	for( x=1 ; x<SCREEN_TILES_H ; x+=2 ) {
 		for( y=0 ; y<SCREEN_TILES_V ; y++ ) {
 			SetTile( x, y, 0 );
@@ -631,65 +634,86 @@ void draw_bg( unsigned char bg_frame ) {
 int main(){
 	int p = 0;
 	bool game_over;
+	unsigned char loser = 0;
 
-	while(ReadJoypad(0));
 	while(1) {	
-#ifndef TITLE_MISSING
 		SetTileTable(title_tiles);
-#endif
-		SetTileTable(title2_tiles);
 		SetSpritesTileTable(sprite_tiles);
 		ClearVram();
 		SetSpriteVisibility(false);
 
 		frame = 0;
-		while( !(ReadJoypad(0) & BTN_START) ) {
+		p = 1;
+		while( 1 ) {
 			WaitVsync(2);
 			draw_bg( frame % 12 );
-			DrawMap2( 4,4, map_title );
+			DrawMap2( 3,4, map_title );
 			if( frame % FPS < FPS/2 ) {
 				text_write( 10,12, "PUSH START" );
 			}
 			text_write( 5,16, "c2011 STEVE MADDISON" );
 			frame++;
 			if( frame % (FPS*12) == 0 ) frame = 0;
-		}
 
-#ifndef TITLE_MISSING
-		// Select number of players...
-		draw_map_flipper( 0, 0, map_player_select );
-		do {
-			int buttons;
-		
-			DrawMap2( 0, 0, map_player_select );
-			if( players == 1 ) {
-				DrawMap2( 2, 4, map_player_selector );
-				DrawMap2( 4, 6, map_1_player );
+			if( ReadJoypad(0) & BTN_START ) {
+				if( !p ) break;
 			}
 			else {
-				DrawMap2( 16, 4, map_player_selector );
-				DrawMap2( 18, 6, map_2_player );
+				p = 0;
 			}
-		
-			while(ReadJoypad(0));
-		
-			buttons = 0;
-			while( !buttons ) {
-				 buttons = ReadJoypad(0);
+		}
+
+		// Select number of players...
+		p = 1;
+		while(1) {
+			int buttons;
+			WaitVsync(2);
+			draw_bg( frame % 12 );
+			frame++;
+			if( frame % (FPS*12) == 0 ) frame = 0;
+
+			if( players == 1 ) {
+				DrawMap2( 2, 4, map_player_selected );
+				DrawMap2( 16, 4, map_player_deselected );
 			}
-			if( buttons & (BTN_LEFT|BTN_RIGHT) ) {
-				players++;
-				if( players > 2 ) players = 1;
+			else {
+				DrawMap2( 2, 4, map_player_deselected );
+				DrawMap2( 16, 4, map_player_selected );
 			}
-			else if( buttons & BTN_START ) {
-				p = 1;
+			DrawMap2( 4, 5, map_1_player );
+			DrawMap2( 18, 5, map_2_player );
+			text_write( 8,14, "SELECT PLAYERS" );
+
+			buttons = ReadJoypad(0);
+			if( buttons & BTN_LEFT ) {
+				players = 1;
 			}
-		} while( p==0 );
-#endif
+			else if ( buttons & BTN_RIGHT ) {
+				players = 2;
+			}
+			else if ( buttons & BTN_SELECT ) {
+				// "p" used as input "lock" here.
+				if( !p ) {
+					players++;
+					if( players > 2 ) players = 1;
+					p = 1;
+				}
+			}
+			else if( buttons & (BTN_START|BTN_A|BTN_B|BTN_X|BTN_Y) ) {
+				if( !p ) break;
+			}
+			else {
+				p = 0;
+			}
+		};
 
 		clear_screen_flipper();
 		SetTileTable(bg_tiles);
 
+		for( p = 0 ; p < NUM_BUBBLES ; p++ ) {
+			bubbles[0][p] = C_BLANK;
+			bubbles[1][p] = C_BLANK;
+		}
 		for( p = 0 ; p < 23 ; p++ ) {
 			bubbles[0][p] = random()%C_COUNT;
 			bubbles[1][p] = random()%C_COUNT;
@@ -734,7 +758,8 @@ int main(){
 					update_arrow(p);
 				}
 				if( firing[p] ) {
-					update_projectile(p);
+					game_over = update_projectile(p);
+					if( game_over ) loser = p;
 				}
 				if( players == 1 && ++wobble_timer > 0 ) {
 					game_over = do_wobble();
@@ -744,15 +769,24 @@ int main(){
 			frame++;
 		}
 		
+		// Game over
 		if( players == 1 ) {
 			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
 		}
 		else {
-		
+			if( loser == 0 ) {
+				DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
+				DrawMap2( FIELD_OFFSET_X+P2_TILE_OFFSET, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_win );
+			}
+			else {
+				DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_win );
+				DrawMap2( FIELD_OFFSET_X+P2_TILE_OFFSET, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
+			}
 		}
+		WaitVsync(60);
 		
-		while( ReadJoypad(0) == 0 && ReadJoypad(1) == 0 );
 		while( ReadJoypad(0) != 0 || ReadJoypad(1) != 0 );
+		while( ReadJoypad(0) == 0 && ReadJoypad(1) == 0 );
 		SetSpriteVisibility(false);
 		clear_screen_flipper();
 	}

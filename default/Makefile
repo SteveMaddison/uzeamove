@@ -19,7 +19,6 @@ KERNEL_OPTIONS += -DVRAM_TILES_H=30 -DVRAM_TILES_V=18
 KERNEL_OPTIONS += -DSCREEN_TILES_H=30 -DSCREEN_TILES_V=18
 KERNEL_OPTIONS += -DSCROLLING=0 
 KERNEL_OPTIONS += -DMAX_SPRITES=12 -DRAM_TILES_COUNT=28
-KERNEL_OPTIONS += -DTITLE_MISSING=1
 
 ## Options common to compile, link and assembly rules
 COMMON = -mmcu=$(MCU)
@@ -60,7 +59,7 @@ LINKONLYOBJECTS =
 INCLUDES = -I"$(KERNEL_DIR)" 
 
 ## Included data files
-DATA_FILES = ../data/bg.inc ../data/sprites.inc ../data/title2.inc
+DATA_FILES = ../data/bg.inc ../data/sprites.inc ../data/title.inc
 
 ## Build
 all: $(TARGET) $(GAME).hex $(GAME).eep $(GAME).lss $(GAME).uze
@@ -73,9 +72,6 @@ all: $(TARGET) $(GAME).hex $(GAME).eep $(GAME).lss $(GAME).uze
 
 ../data/title.inc: ../data/title.png ../data/title.gconvert.xml
 	gconvert ../data/title.gconvert.xml
-
-../data/title2.inc: ../data/title2.png ../data/title2.gconvert.xml
-	gconvert ../data/title2.gconvert.xml
 
 ## Compile Kernel files
 ## Compile Kernel files
