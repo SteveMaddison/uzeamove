@@ -655,6 +655,7 @@ int main(){
 
 		frame = 0;
 		p = 1;
+		FadeIn(1,false);
 		while( 1 ) {
 			unsigned char shine_offset;
 			WaitVsync(2);
