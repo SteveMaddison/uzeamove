@@ -46,7 +46,8 @@ const char patch_shoot[] PROGMEM = {
 	2,PC_NOTE_UP,2,
 	2,PC_NOTE_UP,2,
 	2,PC_NOTE_DOWN,4,
-	20,PC_NOTE_CUT,0
+	20,PC_NOTE_CUT,0,
+	0,PATCH_END
 };
 
 const char patch_win1[] PROGMEM = {
@@ -63,7 +64,8 @@ const char patch_win1[] PROGMEM = {
 	10,PC_ENV_VOL,0xff,
 	10,PC_ENV_VOL,0xff,
 	0,PC_ENV_SPEED,-1,
-	90,PC_NOTE_CUT,0
+	90,PC_NOTE_CUT,0,
+	0,PATCH_END
 };
 
 const char patch_win2[] PROGMEM = {
@@ -80,7 +82,8 @@ const char patch_win2[] PROGMEM = {
 	10,PC_ENV_VOL,0xff,
 	10,PC_ENV_VOL,0xff,
 	0,PC_ENV_SPEED,-1,
-	90,PC_NOTE_CUT,0
+	90,PC_NOTE_CUT,0,
+	0,PATCH_END
 };
 
 const char patch_lose[] PROGMEM = {
@@ -94,7 +97,8 @@ const char patch_lose[] PROGMEM = {
 	0,PC_TREMOLO_RATE,20,
 	0,PC_ENV_VOL,0xff,
 	0,PC_ENV_SPEED,-1,
-	120,PC_NOTE_CUT,0
+	120,PC_NOTE_CUT,0,
+	0,PATCH_END
 };
 
 const struct PatchStruct patches[] PROGMEM = {
