@@ -17,11 +17,20 @@
 */
 
 typedef enum {
-	PATCH_SHOOT = 0,
+	PATCH_TICK = 0,
+	PATCH_SHOOT,
 	PATCH_WIN1,
 	PATCH_WIN2,
 	PATCH_LOSE
 } patch_t;
+
+const char patch_tick[] PROGMEM = {
+	0,PC_NOISE_PARAMS,1,
+	0,PC_ENV_VOL,0x90,
+	0,PC_ENV_SPEED,-30, 
+	3,PC_NOTE_CUT,0,
+	0,PATCH_END
+};
 
 const char patch_shoot[] PROGMEM = {
 	0,PC_ENV_SPEED,-16,
@@ -89,6 +98,7 @@ const char patch_lose[] PROGMEM = {
 };
 
 const struct PatchStruct patches[] PROGMEM = {
+	{1,NULL,patch_tick,0,0},
 	{0,NULL,patch_shoot,0,0},
 	{0,NULL,patch_win1,0,0},
 	{0,NULL,patch_win2,0,0},

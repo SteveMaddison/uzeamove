@@ -398,6 +398,7 @@ bool proc_controls( unsigned char player ) {
 	if( buttons & BTN_LEFT ) {
 		if( !block_left[player] ) {
 			// Rotate left
+//			TriggerFx( PATCH_TICK, 0x80, true );
 			angle[(int)player]--;
 			if( angle[(int)player] < -(ANGLES-1) ) {
 				angle[(int)player] = -(ANGLES-1);
@@ -414,6 +415,7 @@ bool proc_controls( unsigned char player ) {
 	if( buttons & BTN_RIGHT ) {
 		if( !block_right[player] ) {
 			// Rotate right
+//			TriggerFx( PATCH_TICK, 0x80, true );
 			angle[(int)player]++;
 			if( angle[(int)player] > ANGLES-1 ) {
 				angle[(int)player] = ANGLES-1;
@@ -432,7 +434,7 @@ bool proc_controls( unsigned char player ) {
 			// Fire!
 			proj[player].angle = angle[player];
 			firing[player] = true;
-			TriggerFx( PATCH_SHOOT, 0xff, true );
+//			TriggerFx( PATCH_SHOOT, 0xff, true );
 		}
 	}
 	return changed;
@@ -645,6 +647,9 @@ int main(){
 		SetSpritesTileTable(sprite_tiles);
 		ClearVram();
 		SetSpriteVisibility(false);
+		for( p=0 ; p < MAX_SPRITES ; p++ ) {
+			sprites[p].x = SCREEN_TILES_H*TILE_WIDTH;
+		}
 
 		frame = 0;
 		p = 1;
@@ -744,6 +749,7 @@ int main(){
 			new_bubble(p); // Initialise current and next
 			draw_projectile(p);
 		
+			angle[p] = 0;
 			update_arrow(p);
 			set_score( p, 0 );
 		}
@@ -776,16 +782,25 @@ int main(){
 		// Game over
 		if( players == 1 ) {
 			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
-			TriggerFx( PATCH_LOSE, 0xff, true );
+//			TriggerFx( PATCH_LOSE, 0xff, true );
 		}
 		else {
 			if( loser == 0 ) {
 				DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
 				DrawMap2( FIELD_OFFSET_X+P2_TILE_OFFSET, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_win );
+				if( firing[1] ) {
+					// Hide opponent's projectile.
+					sprites[SPRITE_PROJ_L+1].tileIndex = 0;
+					sprites[SPRITE_PROJ_R+1].tileIndex = 0;
+				}
 			}
 			else {
 				DrawMap2( FIELD_OFFSET_X, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_win );
 				DrawMap2( FIELD_OFFSET_X+P2_TILE_OFFSET, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
+				if( firing[0] ) {
+					sprites[SPRITE_PROJ_L].tileIndex = 0;
+					sprites[SPRITE_PROJ_R].tileIndex = 0;
+				}
 			}
 		}
 		WaitVsync(60);
