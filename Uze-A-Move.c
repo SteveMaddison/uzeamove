@@ -114,7 +114,7 @@ const char rivet_y[ANGLES] PROGMEM = {
 	10,  9,  9,  8,  8,  7,  6,  6,  5,  4,  4,  3,  2,  1,  1 };
 
 // Same for projectile paths, but mutiplied by a trajectory factor.
-#define TRAJ_FACTOR 8
+#define TRAJ_SHIFT 3
 const char traj_x[ANGLES] PROGMEM = {
 	 0,  3,  5,  8, 10, 12, 15, 17, 20, 22, 24, 26, 28, 30, 32,
 	34, 36, 37, 39, 40, 42, 43, 44, 45, 46, 46, 47, 47, 48, 48 };
@@ -138,8 +138,8 @@ const char traj_y[ANGLES] PROGMEM = {
 #define SPRITE_PROJ_R		8
 
 // Macros for common calculations
-#define ROW_WIDTH(r)		((r)%2 ? 7 : 8)
-#define FIRST_IN_ROW(r)		(((r/2)*15) + ((r%2)*8))
+#define ROW_WIDTH(r)		((r)&1 ? 7 : 8)
+#define FIRST_IN_ROW(r)		(((r/2)*15) + ((r&1)*8))
 
 // Structures
 typedef struct {
@@ -160,6 +160,7 @@ projectile_t proj[PLAYERS];
 bool firing[PLAYERS];
 unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
+bool block_fire[PLAYERS];
 long score[PLAYERS];
 unsigned int frame = 0;
 // For 1-player game only.
@@ -240,7 +241,7 @@ void draw_field( unsigned char player ) {
 
 			// Reasonable default...
 			SetTile( xp, yp, BUBBLE_FIELD_TILE );
-			if( y%2 == 0 ) {
+			if( (y&1) == 0 ) {
 				// Even row
 				switch( x%3 ) {
 					case 0:
@@ -322,8 +323,8 @@ void new_bubble( unsigned char player ) {
 		proj[player].x = ((FIELD_TILES_H*TILE_WIDTH)/2) - (BUBBLE_WIDTH/2);
 		proj[player].y = ((FIELD_TILES_V+1)*TILE_HEIGHT) - (BUBBLE_WIDTH/2);
 	
-		proj[player].x *= TRAJ_FACTOR;
-		proj[player].y *= TRAJ_FACTOR;
+		proj[player].x <<= TRAJ_SHIFT;
+		proj[player].y <<= TRAJ_SHIFT;
 
 		sprites[SPRITE_PROJ_L+player].tileIndex = TILE_BUBBLE_L( current[(int)player] );
 		sprites[SPRITE_PROJ_R+player].tileIndex = TILE_BUBBLE_R( current[(int)player] );
@@ -432,13 +433,20 @@ bool proc_controls( unsigned char player ) {
 	}
 	
 	if( buttons & (BTN_A|BTN_B|BTN_X|BTN_Y) ) {
-		if( !firing[player] ) {
-			// Fire!
-			proj[player].angle = angle[player];
-			firing[player] = true;
-			TriggerFx( PATCH_SHOOT, 0xff, true );
+		if( !block_fire[player] ) {
+			if( !firing[player] ) {
+				// Fire!
+				proj[player].angle = angle[player];
+				firing[player] = true;
+				TriggerFx( PATCH_SHOOT, 0xff, true );
+			}
+			block_fire[player] = true;
 		}
 	}
+	else {
+		block_fire[player] = false;
+	}
+
 	return changed;
 }
 
@@ -482,26 +490,59 @@ void set_score( unsigned char player, long s ) {
 
 void draw_projectile( unsigned char player ) {
 	if( players == 1 ) {
-		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_1P + (proj[player].x/TRAJ_FACTOR);
+		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_1P + (proj[player].x>>TRAJ_SHIFT);
 	}
 	else {
-		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_2P(player) + (proj[player].x/TRAJ_FACTOR);
+		sprites[SPRITE_PROJ_L+player].x = FIELD_OFFSET_2P(player) + (proj[player].x>>TRAJ_SHIFT);
 	}
 	sprites[SPRITE_PROJ_R+player].x = sprites[SPRITE_PROJ_L+player].x + TILE_WIDTH;
 
-	sprites[SPRITE_PROJ_L+player].y = (FIELD_OFFSET_Y*TILE_HEIGHT) + (proj[player].y/TRAJ_FACTOR);
+	sprites[SPRITE_PROJ_L+player].y = (FIELD_OFFSET_Y*TILE_HEIGHT) + (proj[player].y>>TRAJ_SHIFT);
 	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
+}
+
+#define PROJ_ROW(y) (((y)/BUBBLE_WIDTH)-drop)
+
+unsigned char proj_column( int x, unsigned char row ) {
+	if( row&1 ) {
+		// Odd row, 7 bubbles.
+		char column = (x-(BUBBLE_WIDTH/2)) / BUBBLE_ROWS;
+		if( column > 6 ) return 6;
+		return column;
+	}
+	return x/BUBBLE_ROWS;
+}
+
+bool in_collision_zone( int x, int y ) {
+	if( PROJ_ROW(y) & 1 ) {
+		// Odd row.
+		if( x < (BUBBLE_WIDTH/2) || x >= (7*BUBBLE_WIDTH)+(BUBBLE_WIDTH/2) ) {
+			return false;
+		}
+		x-=(BUBBLE_WIDTH/2);
+	}
+
+	if( x % BUBBLE_WIDTH >= 2 && x % BUBBLE_WIDTH <= 9 ) {
+		if( y % BUBBLE_WIDTH >= 2 && y % BUBBLE_WIDTH <= 9 ) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool update_projectile( unsigned char player ) {
 	bool bottomed_out = false;
+	unsigned hit = 0;
+	int top, bottom, left, right;
 	unsigned char row;
+	int candidate;
 
 	if( firing[player] ) {
 		proj[player].y -= pgm_read_byte( traj_y + proj[player].angle );
 	
 		if( proj[player].angle >= 0 ) {
-			int edge = ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) * TRAJ_FACTOR;
+			int edge = ((FIELD_TILES_H*TILE_WIDTH)-BUBBLE_WIDTH) << TRAJ_SHIFT;
 			proj[player].x += pgm_read_byte( traj_x + proj[player].angle );
 			if( proj[player].x >= edge ) {
 				proj[player].x = edge - (proj[player].x-edge);
@@ -516,58 +557,70 @@ bool update_projectile( unsigned char player ) {
 			}
 		}
 	}
-
+	
 	// Collision check
-#define FUDGE 2
-	row = (((proj[player].y/TRAJ_FACTOR)+FUDGE)/BUBBLE_ROWS) - drop;
-	if( row < BUBBLE_ROWS ) {
-		unsigned char column_l,column_r;
-		bool hit_l,hit_r;
+#define BORDER 2
+	top = (proj[player].y>>TRAJ_SHIFT) + BORDER;
+	bottom = top + BUBBLE_WIDTH - (BORDER*2);
+	left = (proj[player].x>>TRAJ_SHIFT) + BORDER;
+	right = left + BUBBLE_WIDTH - (BORDER*2);
 
-		column_l = ( (proj[player].x/TRAJ_FACTOR) + FUDGE - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
-		column_r = ( (proj[player].x/TRAJ_FACTOR) - FUDGE + (BUBBLE_WIDTH/2) - (row%2 * (BUBBLE_WIDTH/2)) )/BUBBLE_WIDTH;
+#define HIT_TOP_LEFT		0x01
+#define HIT_TOP_RIGHT		0x02
+#define HIT_BOTTOM_LEFT		0x04
+#define HIT_BOTTOM_RIGHT	0x08
+	if( in_collision_zone( left,  top ) ) {
+		row = PROJ_ROW( top );
+		candidate = FIRST_IN_ROW( row ) + proj_column( left, row );
+		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_TOP_LEFT;
+	}
+	if( in_collision_zone( right,  top ) ) {
+		row = PROJ_ROW( top );
+		candidate = FIRST_IN_ROW( row ) + proj_column( right, row );
+		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_TOP_RIGHT;
+	}
+	if( in_collision_zone( left,  bottom ) ) {
+		row = PROJ_ROW( bottom );
+		candidate = FIRST_IN_ROW( row ) + proj_column( left, row );
+		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_BOTTOM_LEFT;
+	}
+	if( in_collision_zone( right,  bottom ) ) {
+		row = PROJ_ROW( bottom );
+		candidate = FIRST_IN_ROW( row ) + proj_column( right, row );
+		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_BOTTOM_RIGHT;
+	}
 
-		if( row%2 ) {
-			// Odd rows have less columns.
-			if( column_l > 6 ) column_l = 6;
-			if( column_r > 6 ) column_r = 6;
+	if( hit ) {
+		row = PROJ_ROW( top-BORDER+(BUBBLE_WIDTH/2) );
+		candidate = FIRST_IN_ROW( row ) + proj_column( left-BORDER+(BUBBLE_WIDTH/2), row );
+
+		if( bubbles[player][candidate] != C_BLANK ) {
+			if( hit & (HIT_TOP_LEFT|HIT_TOP_RIGHT) ) {
+				row = PROJ_ROW( bottom );
+			}
+			else {
+				row = PROJ_ROW( top );
+			}
+
+			candidate = FIRST_IN_ROW( row );
+
+			if( hit & (HIT_TOP_LEFT|HIT_BOTTOM_LEFT) ) {
+				candidate += proj_column( right, row );
+			}
+			else {
+				candidate += proj_column( left, row );
+			}
 		}
 
-		hit_l = (bubbles[player][ FIRST_IN_ROW(row) + column_l ] != C_BLANK);
-		hit_r = (bubbles[player][ FIRST_IN_ROW(row) + column_r ] != C_BLANK);
+		if( candidate >= NUM_BUBBLES ) {
+			bottomed_out = true;
+		}
+		else {
+			bubbles[player][candidate] = current[player];
+			draw_field( player );
 
-		if( hit_l || hit_r ) {
-			int candidate = FIRST_IN_ROW(row);
-
-			if( hit_l && hit_r ) {
-				// Both sides, setting in middle.
-				candidate += column_l + 8;
-			}
-			else if( hit_l && !hit_r ) {
-				// Left only, favour right
-				candidate += column_l + 8;
-				if( bubbles[player][candidate] != C_BLANK ) {
-					candidate--;
-				}
-			}
-			else {
-				// Right only, favour left
-				candidate += column_r + 7;
-				if( bubbles[player][candidate] != C_BLANK ) {
-					candidate++;
-				}
-			}
-
-			if( candidate > NUM_BUBBLES-1 ) {
-				bottomed_out = true;
-			}
-			else {
-				bubbles[player][candidate] = current[player];
-				draw_field( player );
-
-				new_bubble( player );
-				firing[player] = false;
-			}
+			new_bubble( player );
+			firing[player] = false;
 		}
 	}
 
@@ -665,7 +718,7 @@ int main(){
 		FadeIn(1,false);
 		while( 1 ) {
 			unsigned char shine_offset;
-			WaitVsync(2);
+			WaitVsync(3);
 			draw_bg( frame % 12 );
 			DrawMap2( 3,4, map_title );
 
@@ -704,7 +757,7 @@ int main(){
 		while(1) {
 			unsigned char shine_offset;
 			int buttons;
-			WaitVsync(2);
+			WaitVsync(3);
 			draw_bg( frame % 12 );
 			frame++;
 			if( frame % (FPS*12) == 0 ) frame = 0;
