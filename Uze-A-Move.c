@@ -515,24 +515,6 @@ unsigned char proj_column( int x, unsigned char row ) {
 	return x/BUBBLE_ROWS;
 }
 
-bool in_collision_zone( int x, int y ) {
-	if( PROJ_ROW(y) & 1 ) {
-		// Odd row.
-		if( x < (BUBBLE_WIDTH/2) || x >= (7*BUBBLE_WIDTH)+(BUBBLE_WIDTH/2) ) {
-			return false;
-		}
-		x-=(BUBBLE_WIDTH/2);
-	}
-
-	if( x % BUBBLE_WIDTH >= 2 && x % BUBBLE_WIDTH <= 9 ) {
-		if( y % BUBBLE_WIDTH >= 2 && y % BUBBLE_WIDTH <= 9 ) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 bool update_projectile( unsigned char player ) {
 	bool bottomed_out = false;
 	unsigned hit = 0;
@@ -561,44 +543,39 @@ bool update_projectile( unsigned char player ) {
 	}
 	
 	// Collision check
-#define BORDER 2
+#define BORDER 3
+#define CENTRE(x) ((x)-BORDER+(BUBBLE_WIDTH/2))
 	top = (proj[player].y>>TRAJ_SHIFT) + BORDER;
 	bottom = top + BUBBLE_WIDTH - (BORDER*2);
 	left = (proj[player].x>>TRAJ_SHIFT) + BORDER;
 	right = left + BUBBLE_WIDTH - (BORDER*2);
 
-#define HIT_TOP_LEFT		0x01
-#define HIT_TOP_RIGHT		0x02
-#define HIT_BOTTOM_LEFT		0x04
-#define HIT_BOTTOM_RIGHT	0x08
-	if( in_collision_zone( left,  top ) ) {
-		row = PROJ_ROW( top );
-		candidate = FIRST_IN_ROW( row ) + proj_column( left, row );
-		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_TOP_LEFT;
-	}
-	if( in_collision_zone( right,  top ) ) {
-		row = PROJ_ROW( top );
-		candidate = FIRST_IN_ROW( row ) + proj_column( right, row );
-		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_TOP_RIGHT;
-	}
-	if( in_collision_zone( left,  bottom ) ) {
-		row = PROJ_ROW( bottom );
-		candidate = FIRST_IN_ROW( row ) + proj_column( left, row );
-		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_BOTTOM_LEFT;
-	}
-	if( in_collision_zone( right,  bottom ) ) {
-		row = PROJ_ROW( bottom );
-		candidate = FIRST_IN_ROW( row ) + proj_column( right, row );
-		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_BOTTOM_RIGHT;
-	}
+#define HIT_TOP		0x01
+#define HIT_BOTTOM	0x02
+#define HIT_LEFT	0x04
+#define HIT_RIGHT	0x08
+	row = PROJ_ROW( top );
+	candidate = FIRST_IN_ROW( row ) + proj_column( left, row );
+	if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_TOP;
+
+	row = PROJ_ROW( top );
+	candidate = FIRST_IN_ROW( row ) + proj_column( right, row );
+	if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_BOTTOM;
+
+	row = PROJ_ROW( bottom );
+	candidate = FIRST_IN_ROW( row ) + proj_column( left, row );
+	if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_LEFT;
+
+	row = PROJ_ROW( bottom );
+	candidate = FIRST_IN_ROW( row ) + proj_column( right, row );
+	if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_RIGHT;
 
 	if( hit ) {
-		row = PROJ_ROW( top-BORDER+(BUBBLE_WIDTH/2) );
-		candidate = FIRST_IN_ROW( row ) + proj_column( left-BORDER+(BUBBLE_WIDTH/2), row );
+		row = PROJ_ROW( CENTRE(top) );
+		candidate = FIRST_IN_ROW( row ) + proj_column( CENTRE(left), row );
 
-
-		if( bubbles[player][candidate] != C_BLANK ) {
-			if( hit & (HIT_TOP_LEFT|HIT_TOP_RIGHT) ) {
+		if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) {
+			if( hit & HIT_TOP ) {
 				row = PROJ_ROW( bottom );
 			}
 			else {
@@ -607,7 +584,7 @@ bool update_projectile( unsigned char player ) {
 
 			candidate = FIRST_IN_ROW( row );
 
-			if( hit & (HIT_TOP_LEFT|HIT_BOTTOM_LEFT) ) {
+			if( hit & HIT_LEFT ) {
 				candidate += proj_column( right, row );
 			}
 			else {
@@ -615,17 +592,18 @@ bool update_projectile( unsigned char player ) {
 			}
 		}
 
-
 		if( candidate >= NUM_BUBBLES ) {
 			bottomed_out = true;
 		}
 		else {
-			bubbles[player][candidate] = current[player];
-			draw_field( player );
+			if( bubbles[player][candidate] == C_BLANK ) {
+				bubbles[player][candidate] = current[player];
+				draw_field( player );
+			}
 
 			new_bubble( player );
 			firing[player] = false;
-		}
+		}	
 	}
 
 	draw_projectile( player );
