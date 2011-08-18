@@ -80,6 +80,7 @@ typedef enum {
 #include "data/sprites.inc"
 #include "data/title.inc"
 #include "data/patches.inc"
+#include "data/title_song.inc"
 #define FIRST_TEXT_TILE		1
 
 #define FIELD_BUBBLES_H		8
@@ -148,6 +149,7 @@ typedef struct {
 	int y;
 } projectile_t;
 
+#define MASTER_VOLUME 127
 
 // Globals
 #define PLAYERS 2
@@ -594,6 +596,7 @@ bool update_projectile( unsigned char player ) {
 		row = PROJ_ROW( top-BORDER+(BUBBLE_WIDTH/2) );
 		candidate = FIRST_IN_ROW( row ) + proj_column( left-BORDER+(BUBBLE_WIDTH/2), row );
 
+
 		if( bubbles[player][candidate] != C_BLANK ) {
 			if( hit & (HIT_TOP_LEFT|HIT_TOP_RIGHT) ) {
 				row = PROJ_ROW( bottom );
@@ -611,6 +614,7 @@ bool update_projectile( unsigned char player ) {
 				candidate += proj_column( left, row );
 			}
 		}
+
 
 		if( candidate >= NUM_BUBBLES ) {
 			bottomed_out = true;
@@ -670,21 +674,25 @@ void draw_map_flipper( unsigned char xp, unsigned char yp, const char *map ) {
 	}
 }
 
-void clear_screen_flipper( void ) {
+void clear_screen_flipper( bool fade_audio ) {
 	int x,y;
 
 	for( x=1 ; x<SCREEN_TILES_H ; x+=2 ) {
+		WaitVsync(FLIPPER_SPEED);
 		for( y=0 ; y<SCREEN_TILES_V ; y++ ) {
 			SetTile( x, y, 0 );
 		}
+		if( fade_audio ) SetMasterVolume( MASTER_VOLUME - (MASTER_VOLUME/FLIPPER_SPEED) );
+
 		WaitVsync(FLIPPER_SPEED);
 		for( y=0 ; y<SCREEN_TILES_V ; y++ ) {
 			SetTile( x-1, y, 0 );
 		}
-		WaitVsync(FLIPPER_SPEED);
+		if( fade_audio ) SetMasterVolume( MASTER_VOLUME - (MASTER_VOLUME/FLIPPER_SPEED) );
 	}
 
 	ClearVram();
+	if( fade_audio ) SetMasterVolume( 0 );
 }
 
 void draw_bg( unsigned char bg_frame ) {
@@ -715,6 +723,9 @@ int main(){
 
 		frame = 0;
 		p = 1;
+		SetMasterVolume( MASTER_VOLUME );
+		StartSong( title_song );
+		WaitVsync(60);
 		FadeIn(1,false);
 		while( 1 ) {
 			unsigned char shine_offset;
@@ -812,7 +823,8 @@ int main(){
 			}
 		};
 
-		clear_screen_flipper();
+		clear_screen_flipper( true );
+		StopSong();
 		SetTileTable(bg_tiles);
 
 		for( p = 0 ; p < NUM_BUBBLES ; p++ ) {
@@ -856,6 +868,7 @@ int main(){
 		game_over = false;
 	
 		SetSpriteVisibility(true);
+		SetMasterVolume( MASTER_VOLUME );
 
 		while(!game_over) {
 			WaitVsync(1);
@@ -905,7 +918,7 @@ int main(){
 		while( ReadJoypad(0) != 0 || ReadJoypad(1) != 0 );
 		while( ReadJoypad(0) == 0 && ReadJoypad(1) == 0 );
 		SetSpriteVisibility(false);
-		clear_screen_flipper();
+		clear_screen_flipper( true );
 	}
 }
 
