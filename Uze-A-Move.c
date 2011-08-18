@@ -115,7 +115,7 @@ const char rivet_y[ANGLES] PROGMEM = {
 	10,  9,  9,  8,  8,  7,  6,  6,  5,  4,  4,  3,  2,  1,  1 };
 
 // Same for projectile paths, but mutiplied by a trajectory factor.
-#define TRAJ_SHIFT 3
+#define TRAJ_SHIFT 4
 const char traj_x[ANGLES] PROGMEM = {
 	 0,  3,  5,  8, 10, 12, 15, 17, 20, 22, 24, 26, 28, 30, 32,
 	34, 36, 37, 39, 40, 42, 43, 44, 45, 46, 46, 47, 47, 48, 48 };
@@ -409,7 +409,7 @@ bool proc_controls( unsigned char player ) {
 				angle[(int)player] = -(ANGLES-1);
 			}
 			changed = true;
-			block_left[player] = 3;
+			block_left[player] = 5;
 			block_right[player] = 0;
 		}
 	}
@@ -426,7 +426,7 @@ bool proc_controls( unsigned char player ) {
 				angle[(int)player] = ANGLES-1;
 			}
 			changed = true;
-			block_right[player] = 3;
+			block_right[player] = 5;
 			block_left[player] = 0;
 		}
 	}
@@ -841,7 +841,7 @@ int main(){
 			update_arrow(p);
 			set_score( p, 0 );
 		}
-	
+
 		wobble_timer = -WOBBLE_DELAY;
 		game_over = false;
 	
@@ -849,7 +849,7 @@ int main(){
 		SetMasterVolume( MASTER_VOLUME );
 
 		while(!game_over) {
-			WaitVsync(1);
+			if( frame & 1 ) WaitVsync(1);
 
 			for( p=0 ; p < players ; p++ ) {
 				if( proc_controls(p) ) {
