@@ -554,6 +554,11 @@ bool update_projectile( unsigned char player ) {
 #define HIT_BOTTOM	0x02
 #define HIT_LEFT	0x04
 #define HIT_RIGHT	0x08
+#define HIT_LIMIT	0x10
+	if( top - BORDER <= (drop * BUBBLE_WIDTH) ) {
+		hit |= HIT_LIMIT;
+	}
+
 	row = PROJ_ROW( top );
 	candidate = FIRST_IN_ROW( row ) + proj_column( left, row );
 	if( candidate < NUM_BUBBLES && bubbles[player][candidate] != C_BLANK ) hit |= HIT_TOP;
@@ -592,18 +597,25 @@ bool update_projectile( unsigned char player ) {
 			}
 		}
 
-		if( candidate >= NUM_BUBBLES ) {
+		if( candidate >= NUM_BUBBLES || row + drop >= BUBBLE_ROWS ) {
 			bottomed_out = true;
 		}
 		else {
-			if( bubbles[player][candidate] == C_BLANK ) {
-				bubbles[player][candidate] = current[player];
-				draw_field( player );
-			}
+			bubbles[player][candidate] = current[player];
+			draw_field( player );
 
 			new_bubble( player );
 			firing[player] = false;
 		}	
+	}
+
+	if( bottomed_out ) {
+		// Place the projectile where it would have been if it could be drawn as a tile.
+		proj[player].y = (BUBBLE_ROWS * BUBBLE_WIDTH) << TRAJ_SHIFT;
+		proj[player].x = (proj_column( (proj[player].x>>TRAJ_SHIFT)+(BUBBLE_WIDTH/2), row ) * BUBBLE_WIDTH) << TRAJ_SHIFT;
+		if( row & 1 ) {
+			proj[player].x += (BUBBLE_WIDTH/2) << TRAJ_SHIFT;
+		}
 	}
 
 	draw_projectile( player );
@@ -809,10 +821,10 @@ int main(){
 			bubbles[0][p] = C_BLANK;
 			bubbles[1][p] = C_BLANK;
 		}
-		for( p = 0 ; p < (3*8)+(2*7) ; p++ ) {
-			bubbles[0][p] = random()%C_COUNT;
-			bubbles[1][p] = random()%C_COUNT;
-		}
+//		for( p = 0 ; p < (3*8)+(2*7) ; p++ ) {
+//			bubbles[0][p] = random()%C_COUNT;
+//			bubbles[1][p] = random()%C_COUNT;
+//		}
 
 		drop = 0;
 
@@ -890,6 +902,8 @@ int main(){
 					sprites[SPRITE_PROJ_R].tileIndex = 0;
 				}
 			}
+			TriggerFx( PATCH_WIN1, 0xff, true );
+			TriggerFx( PATCH_WIN2, 0xff, true );
 		}
 		WaitVsync(60);
 		
