@@ -31,6 +31,7 @@ typedef enum {
 	C_BLUE,
 	C_PURPLE,
 	C_BLACK,
+	C_POP,
 	C_COUNT
 } colour_t;
 
@@ -39,23 +40,23 @@ typedef enum {
 // Number of first bubble tile in the set
 // (not literally, as first row is for blanks).
 #define BUBBLE_FIRST_TILE			0
-#define BUBBLE_FIRST_COLOUR_TILE	11
+#define BUBBLE_FIRST_COLOUR_TILE	12
 // Background tile for play field
 #define BUBBLE_FIELD_TILE			1
 // Offsets for bubbles on even-numbered rows
 #define BUBBLE_EVEN_L				0
 #define BUBBLE_EVEN_R_SPLIT			1
-#define BUBBLE_EVEN_R_WHOLE			9
+#define BUBBLE_EVEN_R_WHOLE			10
 // Offsets for bubbles on odd-numbered rows
-#define BUBBLE_ODD_MIDDLE			10
-#define BUBBLE_ODD_L				11
-#define BUBBLE_ODD_R				12
-#define BUBBLE_ODD_L_BLANK			13
-#define BUBBLE_ODD_R_BLANK			14
+#define BUBBLE_ODD_MIDDLE			11
+#define BUBBLE_ODD_L				12
+#define BUBBLE_ODD_R				13
+#define BUBBLE_ODD_L_BLANK			14
+#define BUBBLE_ODD_R_BLANK			15
 // Number of bubble tiles of each colour
-#define BUBBLES_PER_COLOUR			15
-#define BUBBLE_SLIVER_L				9
-#define BUBBLE_SLIVER_R				10
+#define BUBBLES_PER_COLOUR			16
+#define BUBBLE_SLIVER_L				10
+#define BUBBLE_SLIVER_R				11
 
 #define BG_SPACE_TILE		117
 #define TILE_SHINE_TOP		42
@@ -276,13 +277,13 @@ void draw_field( unsigned char player ) {
 				// Odd row
 				switch( x%3 ) {
 					case 0:
-						if( (x == 0 || bubbles[player][b-1] == C_BLANK) && bubbles[player][b] != C_BLANK ) {
+						if( (x == 0 || bubbles[player][b-1] == C_BLANK) && bubbles[player][b] != C_BLANK && bubbles[player][b] != C_POP ) {
 							SetTile( xp, yp, BUBBLE_SLIVER_L );
 						}
-						else if( bubbles[player][b] != C_BLANK ) {
+						else if( bubbles[player][b] != C_BLANK && bubbles[player][b] != C_POP ) {
 							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R );
 						}
-						else if( bubbles[player][b-1] != C_BLANK && x != 0 ) {
+						else if( bubbles[player][b-1] != C_BLANK && bubbles[player][b-1] != C_POP && x != 0 ) {
 							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R_BLANK );
 						}
 						break;
@@ -293,12 +294,12 @@ void draw_field( unsigned char player ) {
 						b++;
 						break;
 					case 2:
-						if( ( x == FIELD_TILES_H-1 || bubbles[player][b] == C_BLANK) && bubbles[player][b-1] != C_BLANK ) {
+						if( ( x == FIELD_TILES_H-1 || bubbles[player][b] == C_BLANK) && bubbles[player][b-1] != C_BLANK && bubbles[player][b-1] != C_POP ) {
 							SetTile( xp, yp, BUBBLE_SLIVER_R );
 						}
 						else if( x != FIELD_TILES_H-1 ) {
 							if( bubbles[player][b] != C_BLANK ) {
-								if( bubbles[player][b-1] == C_BLANK ) {
+								if( bubbles[player][b-1] == C_BLANK || bubbles[player][b-1] == C_POP ) {
 									SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b]-1)) + BUBBLE_ODD_L_BLANK );
 								}
 								else {
@@ -320,7 +321,7 @@ void draw_field( unsigned char player ) {
 void new_bubble( unsigned char player ) {
 	if( player < players ) {
 		current[player] = next[player];
-		next[player] = ((random()+frame)%(C_COUNT-1)) + 1;
+		next[player] = ((random()+frame)%(C_COUNT-2)) + 1;
 
 		proj[player].x = ((FIELD_TILES_H*TILE_WIDTH)/2) - (BUBBLE_WIDTH/2);
 		proj[player].y = ((FIELD_TILES_V+1)*TILE_HEIGHT) - (BUBBLE_WIDTH/2);
@@ -821,10 +822,10 @@ int main(){
 			bubbles[0][p] = C_BLANK;
 			bubbles[1][p] = C_BLANK;
 		}
-//		for( p = 0 ; p < (3*8)+(2*7) ; p++ ) {
-//			bubbles[0][p] = random()%C_COUNT;
-//			bubbles[1][p] = random()%C_COUNT;
-//		}
+		for( p = 0 ; p < (3*8)+(2*7) ; p++ ) {
+			bubbles[0][p] = random()%C_COUNT;
+			bubbles[1][p] = random()%C_COUNT;
+		}
 
 		drop = 0;
 
