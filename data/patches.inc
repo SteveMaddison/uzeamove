@@ -25,6 +25,7 @@ typedef enum {
 	// Sound FX
 	PATCH_TICK,
 	PATCH_SHOOT,
+	PATCH_POP,
 	PATCH_WIN1,
 	PATCH_WIN2,
 	PATCH_LOSE
@@ -92,6 +93,15 @@ const char patch_shoot[] PROGMEM = {
 	0,PATCH_END
 };
 
+const char patch_pop[] PROGMEM = {
+	0,PC_ENV_VOL,0xff,
+	0,PC_ENV_SPEED,-20,
+	0,PC_NOISE_PARAMS,0x01,
+	4,PC_ENV_SPEED,-20,
+	12,PC_NOTE_CUT,0,
+	0,PATCH_END
+};
+
 const char patch_win1[] PROGMEM = {
 	0,PC_WAVE,2,
 	0,PC_PITCH,60,
@@ -152,6 +162,7 @@ const struct PatchStruct patches[] PROGMEM = {
 	// SOund FX
 	{1,NULL,patch_tick,0,0},
 	{0,NULL,patch_shoot,0,0},
+	{1,NULL,patch_pop,0,0},
 	{0,NULL,patch_win1,0,0},
 	{0,NULL,patch_win2,0,0},
 	{0,NULL,patch_lose,0,0}

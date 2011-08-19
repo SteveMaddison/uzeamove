@@ -58,7 +58,7 @@ typedef enum {
 #define BUBBLE_SLIVER_L				10
 #define BUBBLE_SLIVER_R				11
 
-#define BG_SPACE_TILE		117
+#define BG_SPACE_TILE		141
 #define TILE_SHINE_TOP		42
 #define TILE_SHINE_BOTTOM	43
 
@@ -164,11 +164,13 @@ bool firing[PLAYERS];
 unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
 bool block_fire[PLAYERS];
+#define POP_SPEED 10
+unsigned char popping[PLAYERS];
 long score[PLAYERS];
 unsigned int frame = 0;
 // For 1-player game only.
 #define WOBBLE_SECONDS	5
-#define WOBBLE_DELAY	(30*FPS)
+#define WOBBLE_DELAY	(30*FPS*2)
 int wobble_timer;
 unsigned char drop;
 
@@ -504,6 +506,13 @@ void draw_projectile( unsigned char player ) {
 	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
 }
 
+
+bool check_links( unsigned char player, int b ) {
+	// Check for links of three or more bubbles from bubble "b".
+	popping[player] = 1;
+	return (popping[player] != 0);
+}
+
 #define PROJ_ROW(y) (((y)/BUBBLE_WIDTH)-drop)
 
 unsigned char proj_column( int x, unsigned char row ) {
@@ -604,6 +613,9 @@ bool update_projectile( unsigned char player ) {
 		else {
 			bubbles[player][candidate] = current[player];
 			draw_field( player );
+			if( check_links( player, candidate ) ) {
+				popping[player] = POP_SPEED;
+			}
 
 			new_bubble( player );
 			firing[player] = false;
@@ -823,8 +835,8 @@ int main(){
 			bubbles[1][p] = C_BLANK;
 		}
 		for( p = 0 ; p < (3*8)+(2*7) ; p++ ) {
-			bubbles[0][p] = random()%C_COUNT;
-			bubbles[1][p] = random()%C_COUNT;
+			bubbles[0][p] = random()%(C_COUNT-1);
+			bubbles[1][p] = random()%(C_COUNT-1);
 		}
 
 		drop = 0;
@@ -839,20 +851,23 @@ int main(){
 			draw_field(1);
 		}
 
-		for( p=0 ; p<PLAYERS ; p++ ) {	
-			// Tile indices of arrow parts.
-			sprites[SPRITE_ARROW+p].tileIndex = TILE_ARROW;
-			sprites[SPRITE_RING +p].tileIndex = TILE_RING;
-			sprites[SPRITE_RIVET+p].tileIndex = TILE_RIVET;
+		for( p=0 ; p<PLAYERS ; p++ ) {
+			if( p < players ) {
+				// Tile indices of arrow parts.
+				sprites[SPRITE_ARROW+p].tileIndex = TILE_ARROW;
+				sprites[SPRITE_RING +p].tileIndex = TILE_RING;
+				sprites[SPRITE_RIVET+p].tileIndex = TILE_RIVET;
 
-			firing[p] = false;	
-			new_bubble(p); // Initialize next	
-			new_bubble(p); // Initialise current and next
-			draw_projectile(p);
+				firing[p] = false;	
+				popping[p] = 0;
+				new_bubble(p); // Initialize next	
+				new_bubble(p); // Initialise current and next
+				draw_projectile(p);
 		
-			angle[p] = 0;
-			update_arrow(p);
-			set_score( p, 0 );
+				angle[p] = 0;
+				update_arrow(p);
+				set_score( p, 0 );
+			}
 		}
 
 		wobble_timer = -WOBBLE_DELAY;
@@ -860,6 +875,7 @@ int main(){
 	
 		SetSpriteVisibility(true);
 		SetMasterVolume( MASTER_VOLUME );
+		StartSong( title_song );
 
 		while(!game_over) {
 			if( frame & 1 ) WaitVsync(1);
@@ -868,10 +884,24 @@ int main(){
 				if( proc_controls(p) ) {
 					update_arrow(p);
 				}
-				if( firing[p] ) {
+
+				if( popping[p] ) {
+					popping[p]--;
+					if( popping[p] == 0 ) {
+						int i;
+						for( i=0 ; i<NUM_BUBBLES ; i++ ) {
+							if( bubbles[p][i] == C_POP ) {
+								bubbles[p][i] = C_BLANK;
+							}
+						}
+						draw_field( p );
+					}
+				}
+				else if( firing[p] ) {
 					game_over = update_projectile(p);
 					if( game_over ) loser = p;
 				}
+
 				if( players == 1 && ++wobble_timer > 0 ) {
 					game_over = do_wobble();
 				}
@@ -879,8 +909,9 @@ int main(){
 
 			frame++;
 		}
-		
+
 		// Game over
+		StopSong();
 		if( players == 1 ) {
 			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
 			TriggerFx( PATCH_LOSE, 0xff, true );
