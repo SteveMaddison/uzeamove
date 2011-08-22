@@ -88,7 +88,7 @@ typedef enum {
 #define FIELD_BUBBLES_V		11
 #define FIELD_TILES_H		12
 #define FIELD_TILES_V		11
-#define NUM_BUBBLES			(8*6)+(7*5)
+#define NUM_BUBBLES			(8*6)+(7*6)
 #define BUBBLE_ROWS			FIELD_TILES_V
 #define GEAR_ANIM_STEPS 	2
 
@@ -123,7 +123,6 @@ const char traj_x[ANGLES] PROGMEM = {
 const char traj_y[ANGLES] PROGMEM = {
 	48, 48, 48, 47, 47, 46, 46, 45, 44, 43, 42, 40, 39, 37, 36,
 	34, 32, 30, 28, 26, 24, 22, 20, 17, 15, 12, 10,  8,  5,  3 };
-
 
 // Sprite constants/macros
 #define TILE_ARROW		23
@@ -164,7 +163,7 @@ bool firing[PLAYERS];
 unsigned char block_left[PLAYERS];
 unsigned char block_right[PLAYERS];
 bool block_fire[PLAYERS];
-#define POP_SPEED 10
+#define POP_SPEED 15
 unsigned char popping[PLAYERS];
 long score[PLAYERS];
 unsigned int frame = 0;
@@ -506,10 +505,112 @@ void draw_projectile( unsigned char player ) {
 	sprites[SPRITE_PROJ_R+player].y = sprites[SPRITE_PROJ_L+player].y;
 }
 
+bool board_clear( unsigned char player ) {
+	int b;
 
-bool check_links( unsigned char player, int b ) {
-	// Check for links of three or more bubbles from bubble "b".
-	popping[player] = 1;
+	for( b=0 ; b < NUM_BUBBLES ; b++ ) {
+		if( bubbles[player][b] != C_BLANK ) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+unsigned char bubble_row( int b ) {
+	unsigned char row = 0;
+	int c = 7;
+	
+	while( b > c ) {
+		row++;
+		c += (8 - (row&1));
+	}
+
+	return row;
+}
+
+#define CHECK_MATCH(b) \
+if( bubbles[player][b] == colour ) { \
+	matches++; \
+	bubbles[player][b] = C_POP; \
+	matches += check_neighbours( player, b, colour ); \
+}
+
+unsigned char check_neighbours( unsigned char player, int b, unsigned char colour ) {
+	unsigned char matches = 0;
+	unsigned char row = bubble_row(b);
+
+	if( row < BUBBLE_ROWS - drop ) {
+		unsigned char column = b - FIRST_IN_ROW(row);
+		if( row&1 ) {
+			// Odd row
+			if( row > 0 ) {
+				CHECK_MATCH(b-8)
+				CHECK_MATCH(b-7)
+			}
+			if( column < 6 ) {
+				CHECK_MATCH(b+1)
+			}
+			if( row < BUBBLE_ROWS - drop - 1 ) {
+				CHECK_MATCH(b+8)
+				CHECK_MATCH(b+7)
+			}
+			if( column > 0 ) {
+				CHECK_MATCH(b-1)
+			}
+		}
+		else {
+			// Even row
+			if( row > 0 ) {
+				if( column > 0 ) {
+					CHECK_MATCH(b-8)
+				}
+				if( column < 7 ) {
+					CHECK_MATCH(b-7)
+				}
+			}
+			if( column < 7 ) {
+				CHECK_MATCH(b+1)
+			}
+			if( row < BUBBLE_ROWS - drop - 1 ) {
+				if( column < 7 ) {
+					CHECK_MATCH(b+8)
+				}
+				if( column > 0 ) {
+					CHECK_MATCH(b+7)
+				}
+			}
+			if( column > 0 ) {
+				CHECK_MATCH(b-1)
+			}
+		}
+	}
+
+	return matches;
+}
+
+bool check_links( unsigned char player, int b, unsigned char colour ) {
+	// Check for links of three or more bubbles, starting from bubble "b".
+	int matches = check_neighbours( player, b, colour );
+	int points = 10;
+
+	if( matches > 2 ) {
+		popping[player] = 1;
+		while( matches-- ) {
+			score[player] += points;
+			points *= 2;
+		}
+		set_score( player, score[player] );
+	}
+	else {
+		int i;
+		for( i=0 ; i < NUM_BUBBLES ; i++ ) {
+			if( bubbles[player][i] == C_POP ) {
+				bubbles[player][i] = colour;
+			}
+		}
+	}
+
 	return (popping[player] != 0);
 }
 
@@ -607,19 +708,20 @@ bool update_projectile( unsigned char player ) {
 			}
 		}
 
-		if( candidate >= NUM_BUBBLES || row + drop >= BUBBLE_ROWS ) {
-			bottomed_out = true;
+		bubbles[player][candidate] = current[player];			
+
+		if( check_links( player, candidate, bubbles[player][candidate] ) ) {
+			popping[player] = POP_SPEED;
 		}
 		else {
-			bubbles[player][candidate] = current[player];
-			draw_field( player );
-			if( check_links( player, candidate ) ) {
-				popping[player] = POP_SPEED;
+			if( candidate >= NUM_BUBBLES || row + drop >= BUBBLE_ROWS ) {
+				bottomed_out = true;
 			}
+		}
+		draw_field( player );
 
-			new_bubble( player );
-			firing[player] = false;
-		}	
+		new_bubble( player );
+		firing[player] = false;
 	}
 
 	if( bottomed_out ) {
@@ -858,7 +960,7 @@ int main(){
 				sprites[SPRITE_RING +p].tileIndex = TILE_RING;
 				sprites[SPRITE_RIVET+p].tileIndex = TILE_RIVET;
 
-				firing[p] = false;	
+				firing[p] = false;
 				popping[p] = 0;
 				new_bubble(p); // Initialize next	
 				new_bubble(p); // Initialise current and next
@@ -895,6 +997,10 @@ int main(){
 							}
 						}
 						draw_field( p );
+						if( board_clear( p ) ) {
+							loser = (p+1) & 1;
+							game_over = true;
+						}
 					}
 				}
 				else if( firing[p] ) {
@@ -913,8 +1019,15 @@ int main(){
 		// Game over
 		StopSong();
 		if( players == 1 ) {
-			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
-			TriggerFx( PATCH_LOSE, 0xff, true );
+			if( loser == 0 ) {
+				DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_lose );
+				TriggerFx( PATCH_LOSE, 0xff, true );
+			}
+			else {
+				DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+(FIELD_TILES_V/2)-2, map_win );
+				TriggerFx( PATCH_WIN1, 0xff, true );
+				TriggerFx( PATCH_WIN2, 0xff, true );
+			}
 		}
 		else {
 			if( loser == 0 ) {
