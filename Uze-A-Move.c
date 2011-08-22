@@ -283,6 +283,7 @@ void draw_field( unsigned char player ) {
 						}
 						else if( bubbles[player][b] != C_BLANK && bubbles[player][b] != C_POP ) {
 							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R );
+
 						}
 						else if( bubbles[player][b-1] != C_BLANK && bubbles[player][b-1] != C_POP && x != 0 ) {
 							SetTile( xp, yp, BUBBLE_FIRST_COLOUR_TILE + (BUBBLES_PER_COLOUR*(bubbles[player][b-1]-1)) + BUBBLE_ODD_R_BLANK );
@@ -371,11 +372,11 @@ bool drop_bubbles( unsigned char player ) {
 }
 
 bool do_wobble( void ) {
-	int second = wobble_timer/FPS;
+	int second = wobble_timer/(FPS*2);
 	bool bottomed_out = false;
 	
 	if( second < WOBBLE_SECONDS ) {
-		int step = FPS/(second+2);
+		int step = (FPS*2)/(second+2);
 		if( wobble_timer % step == 0 ) {
 			DrawMap2( (SCREEN_TILES_H-FIELD_TILES_H)/2, FIELD_OFFSET_Y+drop-1, map_drop_bar_shake );
 		}
@@ -531,12 +532,11 @@ unsigned char bubble_row( int b ) {
 
 #define CHECK_MATCH(b) \
 if( bubbles[player][b] == colour ) { \
-	matches++; \
 	bubbles[player][b] = C_POP; \
-	matches += check_neighbours( player, b, colour ); \
+	matches++; \
 }
 
-unsigned char check_neighbours( unsigned char player, int b, unsigned char colour ) {
+unsigned char pop_neighbours( unsigned char player, int b, unsigned char colour ) {
 	unsigned char matches = 0;
 	unsigned char row = bubble_row(b);
 
@@ -589,21 +589,32 @@ unsigned char check_neighbours( unsigned char player, int b, unsigned char colou
 	return matches;
 }
 
-bool check_links( unsigned char player, int b, unsigned char colour ) {
+bool check_links( unsigned char player, int b ) {
 	// Check for links of three or more bubbles, starting from bubble "b".
-	int matches = check_neighbours( player, b, colour );
-	int points = 10;
+	unsigned char colour = current[player];
+	int total_matches = 1;
+	int matched = 0;
+	long points = 10;
+	int i;
 
-	if( matches > 2 ) {
+	do {
+		matched = 0;
+		for( i=0 ; i < NUM_BUBBLES ; i++ ) {
+			if( bubbles[player][i] == C_POP ) {
+				matched += pop_neighbours( player, i, colour );
+			}
+		}
+		total_matches += matched;
+	} while( matched );
+
+	if( total_matches > 2 ) {
 		popping[player] = 1;
-		while( matches-- ) {
-			score[player] += points;
+		while( total_matches-- ) {
 			points *= 2;
 		}
-		set_score( player, score[player] );
+		set_score( player, score[player] + points );
 	}
 	else {
-		int i;
 		for( i=0 ; i < NUM_BUBBLES ; i++ ) {
 			if( bubbles[player][i] == C_POP ) {
 				bubbles[player][i] = colour;
@@ -708,9 +719,9 @@ bool update_projectile( unsigned char player ) {
 			}
 		}
 
-		bubbles[player][candidate] = current[player];			
+		bubbles[player][candidate] = C_POP;			
 
-		if( check_links( player, candidate, bubbles[player][candidate] ) ) {
+		if( check_links( player, candidate ) ) {
 			popping[player] = POP_SPEED;
 		}
 		else {
